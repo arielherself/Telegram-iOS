@@ -1,0 +1,19 @@
+diff --git a/PublicHeaders/LottieCpp/Vectors.h b/PublicHeaders/LottieCpp/Vectors.h
+index e702972..19f9957 100644
+--- a/PublicHeaders/LottieCpp/Vectors.h
++++ b/PublicHeaders/LottieCpp/Vectors.h
+@@ -129,6 +129,14 @@ struct Vector3D {
+     
+     explicit Vector3D(lottiejson11::Json const &json) noexcept(false);
+     lottiejson11::Json toJson() const;
++
++    bool operator==(Vector3D const &rhs) const {
++        return x == rhs.x && y == rhs.y && z == rhs.z;
++    }
++
++    bool operator!=(Vector3D const &rhs) const {
++        return !(*this == rhs);
++    }
+     
+     float x = 0.0;
+     float y = 0.0;
