@@ -96,7 +96,7 @@ python3 build-system/xtool/validate_identity.py build/xtool/xtool/Arielgram.ipa 
 The checks reject missing extensions, a shared upstream Bundle ID/App Group/Keychain
 group/iCloud container, a URL scheme other than `arielgram`, and old branding in
 localized resources. These archive checks do not replace device testing. Re-signing
-can alter entitlements; preserve the isolated identifiers described in the root README.
+can alter entitlements; preserve the [isolated identifiers and signing requirements](../ios-build.md#application-identity-and-signing).
 
 xtool 1.20.1's Linux signer passes the root entitlements to all extensions.
 `fix_entitlements.py` applies each product's own entitlement file, then uses

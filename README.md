@@ -1,202 +1,65 @@
 # Arielgram
 
-An unofficial Telegram client for iOS, built locally with [xtool](https://github.com/xtool-org/xtool).
+An unofficial Telegram client for iOS, based on Telegram iOS and Swiftgram.
+It uses an independent app identity and can be installed alongside other clients.
 
-- App name: **Arielgram**
-- Bundle ID: `xyz.arielherself.Arielgram`
-- App Group: `group.xyz.arielherself.Arielgram`
-- URL scheme: `arielgram://`
-- Repository: https://github.com/arielherself/Telegram-iOS
+## Features
 
-The app, its six iOS extensions, session backups, Keychain access group, and iCloud
-container use this independent identity. Extensions use the host Bundle ID with
-`.Share`, `.NotificationContent`, `.NotificationService`, `.SiriIntents`, `.Widget`,
-and `.BroadcastUpload` suffixes. Re-sign the app and **all** extensions with profiles
-for these identifiers; keep the App Group consistent across them. Do not assign an
-existing client's Keychain access group or App Group during re-signing.
+- **Message history:** retain deleted messages with a `deleted` label. Open
+  **History** from the long-press menu for the original observed version and edits,
+  displayed as complete message bubbles with text differences and changed-media badges.
+- **Profile changes:** local system messages for observed name and avatar changes
+  in private chats, groups, group members, and channels, with old/new avatar previews.
+- **Protected chats:** allow screenshots, copying, saving, sharing, and forwarding.
+- **Content visibility:** ignore client content restrictions, including `porn-ios`.
+- **No sponsored ads:** hide Telegram sponsored messages and search placements.
+- **Pro features:** enable all local Pro features without a subscription.
+- **Background monitoring:** optionally continue receiving updates in the background.
 
-The app registers only `arielgram://`, so installing it does not take over another
-client's URL schemes. Telegram links are still parsed inside the app.
+## Tracking and storage
 
-## Message history
+History records only changes the client receives. It cannot reconstruct missed
+versions or profile changes. Each message version retains its own content; article
+pages are preserved without text diff highlighting. Secret chats and timed
+disappearing messages keep their normal deletion behavior.
 
-Arielgram retains locally observed versions of ordinary cloud messages. Deleted
-messages stay in their chat with a `deleted` status label. Long-press a message
-with recorded edits and choose **History** to see the original observed version
-followed by each edit, using the normal message bubbles. Removed text has a pale
-red background, additions a pale green background, and unchanged text is shown
-in full. Each version displays its own media; a clock badge marks changed media.
+Records are local and follow chat/account cleanup. Media and avatars use the normal
+cache and may become unavailable after automatic or manual storage clearing.
 
-Article messages retain their complete locally observed pages in History, including
-formatting and media. Article text does not yet receive red/green diff highlighting.
+**Background Message Monitoring** is available on the settings home page and off
+by default. It uses silent audio mixed with other apps and yields to in-app media
+and calls. Enabling it increases battery use; force quitting, system termination,
+audio interruptions, and lost connectivity can still leave recording gaps.
 
-History belongs to the message in the account's existing Postbox database. Media
-participates in the normal storage statistics, manual cache clearing, and cache
-eviction; it is not permanently pinned. Clearing chat history or removing an
-account also removes its local message history. This feature cannot recover
-versions the client never received, nor media that is no longer cached or
-available from Telegram. Secret chats and timed disappearing messages retain their existing deletion behavior.
+## Build and install
 
-Screenshots are allowed throughout Arielgram, including protected chats and media.
-Copying, saving, and sharing ignore the local chat protection checks. Protected
-messages are sent as new content when forwarded, with media reuploaded rather
-than using Telegram's restricted forward operation. Telegram still controls
-whether resources can be downloaded and whether the destination accepts a send.
-Screenshot badges, including the badge picker, display **ARIELGRAM**.
+- [Linux / xtool](build-system/xtool/README.md): dependencies and local IPA builds.
+- [iOS build and signing](build-system/ios-build.md): API credentials, independent
+  identifiers, signing, and Xcode builds.
 
-## Profile changes in chats
-
-Ordinary private chats, groups, and channels show locally observed name and
-photo changes as service messages. Name prompts retain both names; photo prompts
-show the previous and updated avatars side by side with an arrow. The first
-usable profile is a baseline, and ordinary refreshes of the same photo are ignored.
-Group members are associated using existing message authors, cached group rosters,
-and member lists the client normally receives, without extra profile polling.
-Matching official group/channel service messages receive the observation instead
-of adding a duplicate local prompt.
-
-These observations live in the existing message database and are never sent to
-Telegram or counted as unread. Avatar resources use normal cache cleanup; old
-photos are displayed from existing cache or embedded thumbnails, with a placeholder
-when unavailable. Changes the client never received cannot be reconstructed.
-
-## Local Linux IPA build
-
-See [the xtool build guide](build-system/xtool/README.md) for dependencies and resource limitations.
-After installing the Darwin Swift SDK extracted from Xcode:
+With the xtool dependencies and Darwin Swift SDK installed:
 
 ```bash
 python3 build-system/xtool/build.py --bazel /path/to/bazel
 ```
 
-The unsigned/ad hoc IPA is generated at `build/xtool/xtool/Arielgram.ipa` for your own
-re-signing. Generated artifacts are excluded from Git. The app supports arm64 iOS
-13 and later; installation, shaders, widgets, and launch behavior require device tests.
+Output: `build/xtool/xtool/Arielgram.ipa`, ready for your own re-signing.
+The app targets arm64 iOS 13+; WidgetKit requires iOS 14+.
+Bundle ID: `xyz.arielherself.Arielgram`. URL scheme: `arielgram://`.
 
-## Service configuration
+## Services
 
-Online UI translations and announcements come from this repository, with bundled
-translations as a fallback. Optional Pro API/Web App endpoints default to reserved
-`.invalid` domains, with no configured bot, public key, or purchases. These services
-are unavailable until you supply your own `sg_config`; no upstream Pro service is
-used by default. These are development placeholders, not an Arielgram subscription
-or privacy policy. Passkey creation/login is disabled until an associated domain
-and compatible service are configured for this app.
+Telegram still controls content delivery, media access, and message sending.
+Local Pro access does not grant Telegram Premium. Optional Pro services and passkeys
+require your own service configuration; they are unconfigured by default.
+Translations and announcements use this repository, with bundled translation fallback.
+See [service configuration](build-system/ios-build.md#service-configuration).
 
-`build-system/appstore-configuration.json` is the default local build configuration.
-Set your own Telegram API ID/hash and Apple Team ID before distributing or signing.
-The name of this configuration file does not imply an App Store release.
+## Credits
 
-# Telegram iOS Source Code Compilation Guide
-
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
-
-# Creating your Telegram Application
-
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
-
-# Quick Compilation Guide
-
-## Get the Code
-
-```
-git clone --recursive -j8 https://github.com/arielherself/Telegram-iOS.git
-```
-
-## Setup Xcode
-
-Install Xcode (directly from https://developer.apple.com/download/applications or using the App Store).
-
-## Adjust Configuration
-
-1. Use `xyz.arielherself.Arielgram` as the app Bundle ID.
-2. Create a new Xcode project. Use `Arielgram` as the Product Name and `xyz.arielherself` as the Organization Identifier.
-3. Open `Keychain Access` and navigate to `Certificates`. Locate `Apple Development: your@email.address (XXXXXXXXXX)` and double tap the certificate. Under `Details`, locate `Organizational Unit`. This is the Team ID.
-4. Edit `build-system/template_minimal_development_configuration.json`. Use data from the previous steps.
-
-## Generate an Xcode project
-
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=build-system/template_minimal_development_configuration.json \
-    --xcodeManagedCodesigning
-```
-
-# Advanced Compilation Guide
-
-## Xcode
-
-1. Copy and edit `build-system/appstore-configuration.json`.
-2. Copy `build-system/fake-codesigning`. Create and download provisioning profiles, using the `profiles` folder as a reference for the entitlements.
-3. Generate an Xcode project:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=configuration_from_step_1.json \
-    --codesigningInformationPath=directory_from_step_2
-```
-
-## IPA
-
-1. Repeat the steps from the previous section. Use distribution provisioning profiles.
-2. Run:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    build \
-    --configurationPath=...see previous section... \
-    --codesigningInformationPath=...see previous section... \
-    --buildNumber=100001 \
-    --configuration=release_arm64
-```
-
-# FAQ
-
-## Xcode is stuck at "build-request.json not updated yet"
-
-Occasionally, you might observe the following message in your build log:
-```
-"/Users/xxx/Library/Developer/Xcode/DerivedData/Telegram-xxx/Build/Intermediates.noindex/XCBuildData/xxx.xcbuilddata/build-request.json" not updated yet, waiting...
-```
-
-Should this occur, simply cancel the ongoing build and initiate a new one.
-
-## Telegram_xcodeproj: no such package 
-
-Following a system restart, the auto-generated Xcode project might encounter a build failure accompanied by this error:
-```
-ERROR: Skipping '@rules_xcodeproj_generated//generator/Telegram/Telegram_xcodeproj:Telegram_xcodeproj': no such package '@rules_xcodeproj_generated//generator/Telegram/Telegram_xcodeproj': BUILD file not found in directory 'generator/Telegram/Telegram_xcodeproj' of external repository @rules_xcodeproj_generated. Add a BUILD file to a directory to mark it as a package.
-```
-
-If you encounter this issue, re-run the project generation steps in the README.
-
-
-# Tips
-
-## Codesigning is not required for simulator-only builds
-
-Add `--disableProvisioningProfiles`:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=path-to-configuration.json \
-    --codesigningInformationPath=path-to-provisioning-data \
-    --disableProvisioningProfiles
-```
-
-## Versions
-
-Each release is built using a specific Xcode version (see `versions.json`). The helper script checks the versions of the installed software and reports an error if they don't match the ones specified in `versions.json`. It is possible to bypass these checks:
-
-```
-python3 build-system/Make/Make.py --overrideXcodeVersion build ... # Don't check the version of Xcode
-```
+Built on [Telegram iOS](https://github.com/TelegramMessenger/Telegram-iOS) and
+[Swiftgram](https://github.com/Swiftgram/Telegram-iOS), using
+[xtool](https://github.com/xtool-org/xtool) for Linux builds. Component licenses apply.
+When distributing a fork, use your own API credentials, identify it as unofficial,
+follow Telegram's [security guidelines](https://core.telegram.org/mtproto/security_guidelines)
+and naming/logo requirements, and publish source as required by the licenses.
