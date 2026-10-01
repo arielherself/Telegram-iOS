@@ -11,7 +11,7 @@ from clang_compat import arguments
 from graph import Graph, canonical, literal
 from linux_resources import LinuxResources
 from runtime import adapt
-from extensions import build_version, normalize_widget, validate_extension
+from extensions import build_version, normalize_bundle, normalize_widget, validate_build_metadata, validate_extension
 
 
 class MessageHistoryDiffTests(unittest.TestCase):
@@ -51,6 +51,47 @@ class ExtensionMetadataTests(unittest.TestCase):
     def test_old_widget_metadata_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'iOS 14'):
             validate_extension(self.info(), self.binary(), widget=True)
+
+    def test_host_sdk_correction_preserves_minimum_and_executable(self):
+        original = self.binary()
+        info = {'MinimumOSVersion': '13.0', 'CFBundleIdentifier': 'xyz.arielherself.Arielgram'}
+        fixed = normalize_bundle(info, original, '26.2')
+        self.assertEqual(fixed[:72], original[:72])
+        self.assertEqual(fixed[76:], original[76:])
+        self.assertEqual(build_version(fixed)[2:], (13 << 16, (26 << 16) | (2 << 8)))
+        self.assertEqual(info['CFBundleIdentifier'], 'xyz.arielherself.Arielgram')
+        self.assertEqual(validate_build_metadata(info, fixed, '26.2'), {'minimumOSVersion': '13.0', 'linkedSDKVersion': '26.2'})
+        self.assertEqual(normalize_bundle(info, fixed, '26.2'), fixed)
+
+    def test_class_based_extension_keeps_its_entry_and_higher_minimum(self):
+        original = bytearray(self.binary())
+        struct.pack_into('<I', original, 68, 17 << 16)
+        info = {'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.share-services', 'NSExtensionPrincipalClass': 'ShareRootController'}}
+        fixed = normalize_bundle(info, bytes(original), '26.2')
+        self.assertEqual(info['MinimumOSVersion'], '17.0')
+        self.assertEqual(build_version(fixed)[2], 17 << 16)
+        validate_extension(info, fixed)
+        validate_build_metadata(info, fixed, '26.2')
+
+    def test_build_validation_rejects_wrong_or_inconsistent_sdk(self):
+        info = {}
+        fixed = normalize_bundle(info, self.binary(), '26.2')
+        old_info = {}
+        old_binary = normalize_bundle(old_info, self.binary(), '13.0')
+        with self.assertRaisesRegex(ValueError, 'build SDK'):
+            validate_build_metadata(old_info, old_binary, '26.2')
+        with self.assertRaises(ValueError):
+            validate_build_metadata({**info, 'DTSDKName': 'iphoneos13.0'}, fixed)
+        with self.assertRaises(ValueError):
+            validate_build_metadata({**info, 'MinimumOSVersion': '14.0'}, fixed)
+
+    def test_non_ios_or_older_sdk_is_rejected(self):
+        original = bytearray(self.binary())
+        struct.pack_into('<I', original, 64, 7)
+        with self.assertRaisesRegex(ValueError, 'target iOS'):
+            normalize_bundle({}, bytes(original), '26.2')
+        with self.assertRaisesRegex(ValueError, 'older than'):
+            normalize_bundle({}, self.binary(), '12.0')
 
     def test_today_extension_cannot_replace_widgetkit(self):
         info = {'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.widget-extension', 'NSExtensionPrincipalClass': 'TodayViewController'}}

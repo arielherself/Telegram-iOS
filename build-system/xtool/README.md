@@ -54,6 +54,10 @@ framework spelling, and shares Ogg/Opusfile and WebRTC platform-helper
 implementations across targets to avoid duplicate symbols. FFmpeg configuration
 uses LLVM nm to detect the Mach-O symbol prefix.
 
+Before signing, all bundle executables record the actual iPhoneOS SDK version in
+Mach-O and Info.plist metadata. This preserves the deployment minimum (iOS 13 for
+the app, iOS 14+ for WidgetKit) while enabling UIKit's current appearance behavior.
+
 Linux resource adaptations are applied only to exported source copies:
 
 - PDF/SVG image assets become named PNGs at 1x, 2x, and 3x. Namespaces and

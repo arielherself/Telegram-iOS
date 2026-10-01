@@ -63,7 +63,8 @@ def main():
         environment['PATH'] = str(pack_tools) + os.pathsep + environment['PATH']
     subprocess.run(['xtool', 'dev', 'build', '--ipa', '--configuration', 'release'], cwd=ROOT / 'build/xtool', env=environment, check=True)
     run('fix_entitlements.py', ROOT / 'build/xtool/xtool/Arielgram.ipa', '--configuration', ROOT / 'build/xtool/xtool.yml')
-    run('validate_identity.py', ROOT / 'build/xtool/xtool/Arielgram.ipa', '--report', ROOT / 'build/xtool/identity-validation.json')
+    sdk_version = json.loads((sdk / 'Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/SDKSettings.json').read_text())['Version']
+    run('validate_identity.py', ROOT / 'build/xtool/xtool/Arielgram.ipa', '--sdk-version', sdk_version, '--report', ROOT / 'build/xtool/identity-validation.json')
 
 if __name__ == '__main__':
     main()

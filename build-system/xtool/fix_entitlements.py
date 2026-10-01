@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import zipfile
 
-from extensions import normalize_widget
+from extensions import normalize_bundle
 
 
 def fix(ipa, configuration, ldid, refresh_resources=False, sdk=None):
@@ -38,7 +38,10 @@ def fix(ipa, configuration, ldid, refresh_resources=False, sdk=None):
             executable = bundle / info['CFBundleExecutable']
             original = executable.read_bytes()
             previous_info = plistlib.dumps(info)
-            normalized = normalize_widget(info, original, sdk_version)
+            # SwiftPM's Linux linker can report the deployment minimum as the
+            # linked SDK. UIKit uses the main executable's SDK for compatibility
+            # behavior, so normalize every bundle before regenerating signatures.
+            normalized = normalize_bundle(info, original, sdk_version)
             if normalized != original:
                 executable.write_bytes(normalized)
             if plistlib.dumps(info) != previous_info:

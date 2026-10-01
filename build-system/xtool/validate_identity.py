@@ -7,7 +7,7 @@ import plistlib
 import struct
 import zipfile
 
-from extensions import validate_extension
+from extensions import validate_build_metadata, validate_extension
 
 BUNDLE_ID = 'xyz.arielherself.Arielgram'
 EXTENSIONS = {'Share', 'NotificationContent', 'NotificationService', 'SiriIntents', 'Widget', 'BroadcastUpload'}
@@ -39,7 +39,7 @@ def entitlements(data):
     raise ValueError('Executable has no code signature')
 
 
-def validate(path):
+def validate(path, expected_sdk_version=None):
     products = []
     localized_files = 0
     with zipfile.ZipFile(path) as archive:
@@ -61,6 +61,7 @@ def validate(path):
             if info['CFBundleName'] != 'Arielgram':
                 raise ValueError(f'Unexpected bundle name in {product}')
             executable = archive.read(product + '/' + info['CFBundleExecutable'])
+            build_metadata = validate_build_metadata(info, executable, expected_sdk_version)
             if product != host:
                 validate_extension(info, executable, widget=bundle == BUNDLE_ID + '.Widget')
             permissions = entitlements(executable)
@@ -88,7 +89,7 @@ def validate(path):
                 kvstore = permissions.get('com.apple.developer.ubiquity-kvstore-identifier')
                 if kvstore and kvstore != team + '.' + BUNDLE_ID:
                     raise ValueError(f'iCloud key-value store is not isolated: {kvstore}')
-            products.append({'bundleID': bundle, 'executable': info['CFBundleExecutable'], 'entitlements': permissions})
+            products.append({'bundleID': bundle, 'executable': info['CFBundleExecutable'], **build_metadata, 'entitlements': permissions})
         if {p['bundleID'] for p in products} != expected_ids:
             raise ValueError('Missing application or extension')
         for name in names:
@@ -110,8 +111,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('ipa', type=Path)
     parser.add_argument('--report', type=Path)
+    parser.add_argument('--sdk-version', help='Require the actual iPhoneOS SDK version used to build')
     args = parser.parse_args()
-    report = validate(args.ipa)
+    report = validate(args.ipa, args.sdk_version)
     if args.report:
         args.report.write_text(json.dumps(report, indent=2) + '\n')
     print(f"Verified Arielgram host + six extensions, signed identifiers, isolated groups, URL scheme, and {report['localizedFilesChecked']} localization resources.")
