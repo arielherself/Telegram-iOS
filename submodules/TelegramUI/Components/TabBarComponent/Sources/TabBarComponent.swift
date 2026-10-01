@@ -1190,11 +1190,12 @@ private final class ItemComponent: Component {
                         self.imageIcon = imageIcon
                     }
 
+                    let image = component.isSelected ? tabBarItem.selectedImage : tabBarItem.image
                     let iconSize = imageIcon.update(
                         transition: iconTransition,
                         component: AnyComponent(Image(
-                            image: component.isSelected ? tabBarItem.selectedImage : tabBarItem.image,
-                            tintColor: nil,
+                            image: image,
+                            tintColor: image?.renderingMode == .alwaysTemplate ? iconTintColor : nil,
                             contentMode: .center
                         )),
                         environment: {},

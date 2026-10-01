@@ -144,9 +144,88 @@ private func actionForPeer(context: AccountContext, peer: EnginePeer, interfaceS
 
 private let badgeFont = Font.regular(14.0)
 
+private final class WatchJoinButtonsComponent: Component {
+    let theme: PresentationTheme
+    let preferClearGlass: Bool
+    let joinTitle: String
+    let watch: () -> Void
+    let join: () -> Void
+
+    init(theme: PresentationTheme, preferClearGlass: Bool, joinTitle: String, watch: @escaping () -> Void, join: @escaping () -> Void) {
+        self.theme = theme
+        self.preferClearGlass = preferClearGlass
+        self.joinTitle = joinTitle
+        self.watch = watch
+        self.join = join
+    }
+
+    static func ==(lhs: WatchJoinButtonsComponent, rhs: WatchJoinButtonsComponent) -> Bool {
+        return lhs.theme === rhs.theme && lhs.preferClearGlass == rhs.preferClearGlass && lhs.joinTitle == rhs.joinTitle
+    }
+
+    final class View: UIView {
+        private let container = GlassBackgroundContainerView()
+        private let watchButton = ComponentView<Empty>()
+        private let joinButton = ComponentView<Empty>()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            self.addSubview(self.container)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        func update(component: WatchJoinButtonsComponent, availableSize: CGSize, transition: ComponentTransition) -> CGSize {
+            let spacing: CGFloat = 8.0
+            let buttonWidth = max(1.0, (availableSize.width - spacing) * 0.5)
+            let minWidth = min(100.0, buttonWidth)
+            var width: CGFloat = 0.0
+            for (button, title, background, action) in [
+                (self.watchButton, "Watch", GlassControlGroupComponent.Background.panel, component.watch),
+                (self.joinButton, component.joinTitle, GlassControlGroupComponent.Background.activeTint(inset: true), component.join)
+            ] {
+                let size = button.update(
+                    transition: transition,
+                    component: AnyComponent(GlassControlGroupComponent(
+                        theme: component.theme,
+                        preferClearGlass: component.preferClearGlass,
+                        background: background,
+                        items: [GlassControlGroupComponent.Item(id: title, content: .text(title), action: action)],
+                        minWidth: minWidth
+                    )),
+                    environment: {},
+                    containerSize: CGSize(width: buttonWidth, height: availableSize.height)
+                )
+                if let view = button.view {
+                    if view.superview == nil {
+                        self.container.contentView.addSubview(view)
+                    }
+                    transition.setFrame(view: view, frame: CGRect(origin: CGPoint(x: width, y: 0.0), size: size))
+                }
+                width += size.width + spacing
+            }
+            let size = CGSize(width: width - spacing, height: availableSize.height)
+            transition.setFrame(view: self.container, frame: CGRect(origin: CGPoint(), size: size))
+            self.container.update(size: size, isDark: component.theme.overallDarkAppearance, transition: transition)
+            return size
+        }
+    }
+
+    func makeView() -> View {
+        return View(frame: CGRect())
+    }
+
+    func update(view: View, availableSize: CGSize, state: EmptyComponentState, environment: Environment<Empty>, transition: ComponentTransition) -> CGSize {
+        return view.update(component: self, availableSize: availableSize, transition: transition)
+    }
+}
+
 public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
     private let panelContainer = UIView()
     private let panel = ComponentView<Empty>()
+    private let watchJoinButtons = ComponentView<Empty>()
     
     /*private let buttonBackgroundView: GlassBackgroundView
     private let button: HighlightableButton
@@ -513,6 +592,7 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
         }
         
         var centerPanelItem: GlassControlPanelComponent.Item?
+        var separateJoinTitle: String?
         if let centerAction {
             var items: [GlassControlGroupComponent.Item] = []
             let displaysWatch: Bool
@@ -522,21 +602,25 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
             default:
                 displaysWatch = false
             }
-            if displaysWatch {
+            if displaysWatch && !self.isWatched {
+                separateJoinTitle = centerAction.title
+            } else if displaysWatch {
                 items.append(GlassControlGroupComponent.Item(id: "watch", content: .text(self.isWatched ? "Unwatch" : "Watch"), action: { [weak self] in
                     self?.watchPressed()
                 }))
             }
-            if !displaysWatch || !self.isWatched {
+            if !displaysWatch {
                 items.append(GlassControlGroupComponent.Item(id: "primary", content: .text(centerAction.title), action: { [weak self] in
                     self?.buttonPressed()
                 }))
             }
-            centerPanelItem = GlassControlPanelComponent.Item(
-                items: items,
-                background: centerAction.isAccent ? .activeTint(inset: true) : .panel,
-                keepWide: true
-            )
+            if !items.isEmpty {
+                centerPanelItem = GlassControlPanelComponent.Item(
+                    items: items,
+                    background: displaysWatch ? .panel : (centerAction.isAccent ? .activeTint(inset: true) : .panel),
+                    keepWide: true
+                )
+            }
         }
         
         var rightPanelItems: [GlassControlGroupComponent.Item] = []
@@ -581,6 +665,36 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
             }
             transition.updateFrame(view: self.panelContainer, frame: panelFrame)
             transition.updateFrame(view: panelView, frame: CGRect(origin: CGPoint(), size: panelFrame.size))
+        }
+
+        if let joinTitle = separateJoinTitle, let panelView = self.panel.view as? GlassControlPanelComponent.View {
+            var left = panelView.leftItemView.map { $0.frame.maxX + 8.0 } ?? 0.0
+            var right = panelView.rightItemView.map { panelFrame.width - $0.frame.minX + 8.0 } ?? 0.0
+            if left <= 48.0 && right <= 48.0 {
+                left = max(left, right)
+                right = left
+            }
+            let size = self.watchJoinButtons.update(
+                transition: ComponentTransition(transition),
+                component: AnyComponent(WatchJoinButtonsComponent(
+                    theme: interfaceState.theme,
+                    preferClearGlass: interfaceState.preferredGlassType == .clear,
+                    joinTitle: joinTitle,
+                    watch: { [weak self] in self?.watchPressed() },
+                    join: { [weak self] in self?.buttonPressed() }
+                )),
+                environment: {},
+                containerSize: CGSize(width: max(1.0, panelFrame.width - left - right), height: panelHeight)
+            )
+            if let view = self.watchJoinButtons.view {
+                if view.superview == nil {
+                    self.panelContainer.addSubview(view)
+                }
+                view.isHidden = false
+                transition.updateFrame(view: view, frame: CGRect(origin: CGPoint(x: left + floor((panelFrame.width - left - right - size.width) * 0.5), y: 0.0), size: size))
+            }
+        } else {
+            self.watchJoinButtons.view?.isHidden = true
         }
         
         return panelHeight

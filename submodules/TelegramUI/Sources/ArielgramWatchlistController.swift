@@ -68,8 +68,19 @@ private enum WatchlistEntry: ItemListNodeEntry {
 func arielgramWatchlistController(context: AccountContext) -> ViewController {
     var openImpl: ((EnginePeer) -> Void)?
     let arguments = WatchlistArguments(context: context, open: { peer in openImpl?(peer) })
-    let icon = UIImage(systemName: "bookmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: 25.0, weight: .regular))
-    let selectedIcon = UIImage(systemName: "bookmark.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 25.0, weight: .regular))
+    func tabIcon(_ name: String) -> UIImage? {
+        guard let symbol = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: 25.0, weight: .regular))?.withTintColor(.black, renderingMode: .alwaysOriginal) else { return nil }
+        // TabBarNode draws the bitmap as a mask. Rasterize SF Symbols so both
+        // selected and unselected states use the same theme colors as other tabs.
+        return generateImage(symbol.size, rotatedContext: { size, context in
+            context.clear(CGRect(origin: CGPoint(), size: size))
+            UIGraphicsPushContext(context)
+            symbol.draw(in: CGRect(origin: CGPoint(), size: size))
+            UIGraphicsPopContext()
+        })?.withRenderingMode(.alwaysTemplate)
+    }
+    let icon = tabIcon("bookmark")
+    let selectedIcon = tabIcon("bookmark.fill")
     let tab = ItemListControllerTabBarItem(title: "Watchlist", image: icon, selectedImage: selectedIcon)
 
     // Only local preferences and basic peer views: no history, unread counts,
