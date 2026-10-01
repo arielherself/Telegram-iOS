@@ -103,11 +103,3 @@ xtool 1.20.1's Linux signer passes the root entitlements to all extensions.
 `ldid -S -M` to regenerate the bundle resource seals while preserving those values.
 This is ad hoc signing; it does not supply a developer certificate or provisioning
 profile. The driver performs this step before validating the actual IPA.
-
-WidgetKit needs its Swift `@main` entry point. xtool's generic extension linker
-selects `_NSExtensionMain` and the Linux linker records SDK 13.0 by default.
-`extensions.py` selects the existing compiled `_main` symbol, marks the executable
-as an application extension, and records the actual iOS 26.2 SDK with an iOS 14.0
-minimum. Packaging writes matching platform metadata before regenerating signatures.
-Validation rejects the old WidgetKit entry/SDK metadata and rejects class-based
-extensions without a nonempty principal-class or storyboard declaration.

@@ -7,8 +7,6 @@ import plistlib
 import struct
 import zipfile
 
-from extensions import validate_extension
-
 BUNDLE_ID = 'xyz.arielherself.Arielgram'
 EXTENSIONS = {'Share', 'NotificationContent', 'NotificationService', 'SiriIntents', 'Widget', 'BroadcastUpload'}
 
@@ -60,10 +58,7 @@ def validate(path):
                 raise ValueError(f'Unexpected or duplicated Bundle ID: {bundle}')
             if info['CFBundleName'] != 'Arielgram':
                 raise ValueError(f'Unexpected bundle name in {product}')
-            executable = archive.read(product + '/' + info['CFBundleExecutable'])
-            if product != host:
-                validate_extension(info, executable)
-            permissions = entitlements(executable)
+            permissions = entitlements(archive.read(product + '/' + info['CFBundleExecutable']))
             identifier = permissions.get('application-identifier', '')
             if not identifier.endswith('.' + bundle):
                 raise ValueError(f'Application identifier does not match {bundle}')
