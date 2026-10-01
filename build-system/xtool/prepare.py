@@ -313,6 +313,8 @@ class Exporter:
                     if path.exists():
                         result.update(plistlib.loads(path.read_bytes()))
         result["CFBundleIdentifier"] = self.graph.attrs(label)["bundle_id"]
+        if result.get("NSExtension", {}).get("NSExtensionPointIdentifier") == "com.apple.widgetkit-extension":
+            result["MinimumOSVersion"] = "14.0"
         result.setdefault("CFBundleVersion", "1")
         result.setdefault("CFBundleShortVersionString", json.loads((ROOT / "versions.json").read_text())["app"])
         return result

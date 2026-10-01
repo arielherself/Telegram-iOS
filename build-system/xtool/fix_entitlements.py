@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 import zipfile
 
+from extensions import normalize_widget
+
 
 def fix(ipa, configuration, ldid, refresh_resources=False):
     config = json.loads(configuration.read_text())
@@ -30,6 +32,14 @@ def fix(ipa, configuration, ldid, refresh_resources=False):
                         shutil.copytree(source, destination, dirs_exist_ok=True, symlinks=True)
                     else:
                         shutil.copy2(source, destination)
+            executable = bundle / info['CFBundleExecutable']
+            original = executable.read_bytes()
+            previous_info = plistlib.dumps(info)
+            normalized = normalize_widget(info, original)
+            if normalized != original:
+                executable.write_bytes(normalized)
+            if plistlib.dumps(info) != previous_info:
+                (bundle / 'Info.plist').write_bytes(plistlib.dumps(info))
             permissions = (configuration.parent / product['entitlementsPath']).resolve()
             subprocess.run([ldid, '-S' + str(permissions), str(bundle / info['CFBundleExecutable'])], check=True)
         # With no new entitlement file, -M keeps each binary's corrected values.

@@ -1,4 +1,5 @@
 import ast
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from clang_compat import arguments
 from graph import Graph, canonical, literal
 from linux_resources import LinuxResources
 from runtime import adapt
+from extensions import inspect, normalize_widget, validate_extension
 
 
 class GraphTests(unittest.TestCase):
@@ -53,6 +55,50 @@ class ShaderTests(unittest.TestCase):
             self.assertEqual(source.count('struct Shared'), 1)
             self.assertIn('NV12Vertex;', source)
             self.assertNotIn('#include "', source)
+
+class ExtensionEntryTests(unittest.TestCase):
+    def widget_binary(self):
+        data = bytearray(512)
+        struct.pack_into('<8I', data, 0, 0xfeedfacf, 0x100000c, 0, 2, 4, 152, 0, 0)
+        struct.pack_into('<II16sQQQQIIII', data, 32, 0x19, 72, b'__TEXT', 0x100000000, 512, 0, 512, 7, 5, 0, 0)
+        struct.pack_into('<IIQQ', data, 104, 0x80000028, 24, 128, 0)
+        struct.pack_into('<8I', data, 128, 0x32, 32, 2, 13 << 16, 13 << 16, 1, 3, 21 << 16)
+        struct.pack_into('<6I', data, 160, 2, 24, 192, 1, 208, 7)
+        struct.pack_into('<IBBHQ', data, 192, 1, 0xf, 1, 0, 0x100000100)
+        data[208:215] = b'\0_main\0'
+        return bytes(data)
+
+    def widget_info(self):
+        return {'MinimumOSVersion': '13.0', 'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.widgetkit-extension'}}
+
+    def test_previous_widget_package_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'iOS 14'):
+            validate_extension(self.widget_info(), self.widget_binary())
+
+    def test_widget_uses_real_swift_main_and_modern_sdk(self):
+        info = self.widget_info()
+        data = normalize_widget(info, self.widget_binary())
+        parsed = inspect(data)
+        self.assertEqual(parsed['entryOffset'], 256)
+        self.assertEqual(parsed['minimum'], 14 << 16)
+        self.assertEqual(parsed['sdk'], (26 << 16) | (2 << 8))
+        self.assertEqual(info['MinimumOSVersion'], '14.0')
+        self.assertTrue(struct.unpack_from('<I', data, 24)[0] & 0x02000000)
+        validate_extension(info, data)
+        self.assertEqual(normalize_widget(info, data), data)
+
+    def test_widget_without_compiled_swift_main_is_rejected(self):
+        data = self.widget_binary().replace(b'_main', b'_none')
+        with self.assertRaisesRegex(ValueError, 'mainOffset'):
+            normalize_widget(self.widget_info(), data)
+
+    def test_class_based_extension_requires_string_entry(self):
+        info = {'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.share-services'}}
+        with self.assertRaisesRegex(ValueError, 'principal class'):
+            validate_extension(info, b'')
+        info['NSExtension']['NSExtensionPrincipalClass'] = 'ShareRootController'
+        validate_extension(info, b'')
+
 
 class ResourceCopyTests(unittest.TestCase):
     def resource(self):
