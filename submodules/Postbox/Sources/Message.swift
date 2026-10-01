@@ -612,6 +612,12 @@ public struct StoryId: Codable, Hashable {
     }
 }
 
+/// Local message metadata may own additional media (e.g. edit history). This
+/// surface is for storage accounting/cleanup, not visible message content.
+public protocol MessageMediaHistoryAttribute {
+    var mediaForStorage: [Media] { get }
+}
+
 public protocol MessageAttribute: AnyObject, PostboxCoding {
     var associatedPeerIds: [PeerId] { get }
     var associatedMessageIds: [MessageId] { get }

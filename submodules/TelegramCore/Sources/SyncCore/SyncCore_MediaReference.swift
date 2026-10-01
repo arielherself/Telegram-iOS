@@ -70,14 +70,15 @@ public struct MessageReference: PostboxCoding, Hashable, Equatable {
     }
     
     public init(_ message: Message) {
-        if message.id.namespace != Namespaces.Message.Local, let peer = message.peers[message.id.peerId], let inputPeer = PeerReference(peer) {
+        let messageId = message.attributes.compactMap { ($0 as? ArielgramHistoryDisplayAttribute)?.sourceMessageId }.first ?? message.id
+        if messageId.namespace != Namespaces.Message.Local, let peer = message.peers[messageId.peerId], let inputPeer = PeerReference(peer) {
             let author: PeerReference?
             if let peer = message.author {
                 author = PeerReference(peer)
             } else {
                 author = nil
             }
-            self.content = .message(peer: inputPeer, author: author, id: message.id, timestamp: message.timestamp, incoming: message.flags.contains(.Incoming), secret: message.containsSecretMedia, threadId: message.threadId)
+            self.content = .message(peer: inputPeer, author: author, id: messageId, timestamp: message.timestamp, incoming: message.flags.contains(.Incoming), secret: message.containsSecretMedia, threadId: message.threadId)
         } else {
             self.content = .none
         }

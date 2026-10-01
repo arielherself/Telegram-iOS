@@ -63,6 +63,16 @@ extension ChatControllerImpl {
                 var (allowedReactions, _) = allowedReactionsAndStars
                 
                 var actions = actions
+                if message.attributes.contains(where: { ($0 as? ArielgramMessageHistoryAttribute)?.versions.isEmpty == false }), let interaction = self.controllerInteraction, case var .list(items) = actions.content {
+                    items.append(.action(ContextMenuActionItem(text: "History", icon: { theme in
+                        return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Timer"), color: theme.contextMenu.primaryColor)
+                    }, action: { [weak self] _, completion in
+                        completion(.default)
+                        guard let self else { return }
+                        self.push(ArielgramMessageHistoryController(context: self.context, message: message._asMessage(), interaction: interaction))
+                    })))
+                    actions.content = .list(items)
+                }
                 switch actions.content {
                 case let .list(itemList):
                     if itemList.isEmpty {

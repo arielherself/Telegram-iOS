@@ -133,6 +133,7 @@ func messageContentToUpload(accountPeerId: PeerId, network: Network, postbox: Po
 }
 
 func messageContentToUpload(accountPeerId: PeerId, network: Network, postbox: Postbox, auxiliaryMethods: AccountAuxiliaryMethods, transformOutgoingMessageMedia: TransformOutgoingMessageMedia?, messageMediaPreuploadManager: MessageMediaPreuploadManager, revalidationContext: MediaReferenceRevalidationContext, forceReupload: Bool, isGrouped: Bool, passFetchProgress: Bool, forceNoBigParts: Bool, peerId: PeerId, messageId: MessageId?, attributes: [MessageAttribute], text: String, media: [Media], mediaReference: AnyMediaReference? = nil) -> MessageContentToUpload {
+    let forceReupload = forceReupload || attributes.contains(where: { $0 is ArielgramReuploadCopiedMediaAttribute })
     var contextResult: OutgoingChatContextResultMessageAttribute?
     var autoremoveMessageAttribute: AutoremoveTimeoutMessageAttribute?
     var autoclearMessageAttribute: AutoclearTimeoutMessageAttribute?

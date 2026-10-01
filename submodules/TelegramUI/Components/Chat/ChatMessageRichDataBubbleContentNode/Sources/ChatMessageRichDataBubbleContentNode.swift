@@ -135,6 +135,12 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
     }
 
     private static func resolvedRichDataContent(item: ChatMessageBubbleContentItem, showMoreExpanded: Bool) -> ResolvedRichDataContent? {
+        if item.message.attributes.contains(where: { $0 is ArielgramHistoryDisplayAttribute }), let attribute = item.message.richText {
+            // Historical article pages show all locally observed content. Never
+            // fetch the newest article into a synthetic historical message.
+            let page = attribute.fullInstantPage ?? attribute.instantPage
+            return ResolvedRichDataContent(instantPage: page, originalAttribute: attribute, key: .original(attribute: ObjectIdentifier(attribute), page: ObjectIdentifier(page)), isTranslated: false, isTranslating: false)
+        }
         if let attribute = item.attributes.updatingMedia?.richText {
             let instantPage = (showMoreExpanded ? attribute.fullInstantPage : nil) ?? attribute.instantPage
             return ResolvedRichDataContent(
@@ -348,7 +354,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
             var wantsReactionsOutside = false
             if let attribute = (item.attributes.updatingMedia.map(\.richText) ?? item.message.richText) {
                 let showMoreExpanded = (showMoreExpandedState?.messageId == item.message.id) ? (showMoreExpandedState?.value ?? false) : false
-                let page = (showMoreExpanded ? attribute.fullInstantPage : nil) ?? attribute.instantPage
+                let page = ((showMoreExpanded || item.message.attributes.contains(where: { $0 is ArielgramHistoryDisplayAttribute })) ? attribute.fullInstantPage : nil) ?? attribute.instantPage
                 if let lastBlock = page.blocks.last, richDataBlockEndsWithVisualMedia(lastBlock) {
                     let reactions = mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))
                     let hasReactions = !(reactions?.reactions.isEmpty ?? true)

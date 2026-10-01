@@ -22,7 +22,8 @@ func addMessageMediaResourceIdsToRemove(message: Message, resourceIds: inout [Me
     }
 }
 
-public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil) {
+public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil, retainHistory: Bool = false) {
+    let ids = retainHistory ? arielgramMarkMessagesDeleted(transaction: transaction, ids: ids) : ids
     var resourceIds: [MediaResourceId] = []
     if deleteMedia {
         for id in ids {

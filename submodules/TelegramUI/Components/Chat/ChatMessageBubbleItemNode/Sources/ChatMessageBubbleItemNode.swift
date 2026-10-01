@@ -722,6 +722,7 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
     private let backgroundWallpaperNode: ChatMessageBubbleBackdrop
     private let backgroundNode: ChatMessageBackground
     private var backgroundHighlightNode: ChatMessageBackground?
+    private var arielgramMediaEditBadge: ASImageNode?
     private let shadowNode: ChatMessageShadowNode
     private var clippingNode: ChatMessageBubbleClippingNode
     
@@ -5557,6 +5558,33 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
             }
         }
         
+        let historyDisplay = item.message.attributes.compactMap { $0 as? ArielgramHistoryDisplayAttribute }.first
+        let mediaEdited = historyDisplay?.mediaEdited ?? (item.message.arielgramHistory?.versions.contains(where: { !arielgramMediaContentEqual($0.media, item.message.media) || ($0.media.count == item.message.media.count && zip($0.media, item.message.media).contains { !$0.0.isEqual(to: $0.1) }) }) ?? false)
+        if mediaEdited && !item.message.media.isEmpty {
+            let badge: ASImageNode
+            if let current = strongSelf.arielgramMediaEditBadge {
+                badge = current
+            } else {
+                badge = ASImageNode()
+                badge.displaysAsynchronously = false
+                badge.isUserInteractionEnabled = false
+                badge.image = generateImage(CGSize(width: 26.0, height: 26.0), rotatedContext: { size, context in
+                    context.setFillColor(UIColor(white: 0.0, alpha: 0.5).cgColor)
+                    context.fillEllipse(in: CGRect(origin: .zero, size: size))
+                    generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Timer"), color: .white)?.draw(in: CGRect(x: 5.0, y: 5.0, width: 16.0, height: 16.0))
+                })
+                badge.accessibilityLabel = "Media edited"
+                strongSelf.arielgramMediaEditBadge = badge
+            }
+            // Keep the indicator above all media content, including documents
+            // and captions, without changing the normal bubble layout.
+            strongSelf.mainContextSourceNode.contentNode.addSubnode(badge)
+            badge.frame = CGRect(x: contentUpperRightCorner.x - 28.0, y: contentUpperRightCorner.y + 4.0, width: 26.0, height: 26.0)
+        } else if let badge = strongSelf.arielgramMediaEditBadge {
+            badge.removeFromSupernode()
+            strongSelf.arielgramMediaEditBadge = nil
+        }
+
         var isCurrentlyPlayingMedia = false
         if item.associatedData.currentlyPlayingMessageId == item.message.index, let file = item.message.media.first(where: { $0 is TelegramMediaFile }) as? TelegramMediaFile, file.isInstantVideo {
             isCurrentlyPlayingMedia = true

@@ -297,6 +297,8 @@ NSObject * _Nullable makeColorMatrixFilter() {
 static const void *layerDisableScreenshotsKey = &layerDisableScreenshotsKey;
 
 void setLayerDisableScreenshots(CALayer * _Nonnull layer, bool disableScreenshots) {
+    // Arielgram allows capture in chats, galleries and media overlays.
+    disableScreenshots = false;
     static UITextField *textField = nil;
     static UIView *secureView = nil;
     static dispatch_once_t onceToken;

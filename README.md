@@ -18,6 +18,32 @@ existing client's Keychain access group or App Group during re-signing.
 The app registers only `arielgram://`, so installing it does not take over another
 client's URL schemes. Telegram links are still parsed inside the app.
 
+## Message history
+
+Arielgram retains locally observed versions of ordinary cloud messages. Deleted
+messages stay in their chat with a `deleted` status label. Long-press a message
+with recorded edits and choose **History** to see the original observed version
+followed by each edit, using the normal message bubbles. Removed text has a pale
+red background, additions a pale green background, and unchanged text is shown
+in full. Each version displays its own media; a clock badge marks changed media.
+
+Article messages retain their complete locally observed pages in History, including
+formatting and media. Article text does not yet receive red/green diff highlighting.
+
+History belongs to the message in the account's existing Postbox database. Media
+participates in the normal storage statistics, manual cache clearing, and cache
+eviction; it is not permanently pinned. Clearing chat history or removing an
+account also removes its local message history. This feature cannot recover
+versions the client never received, nor media that is no longer cached or
+available from Telegram. Secret chats and timed disappearing messages retain their existing deletion behavior.
+
+Screenshots are allowed throughout Arielgram, including protected chats and media.
+Copying, saving, and sharing ignore the local chat protection checks. Protected
+messages are sent as new content when forwarded, with media reuploaded rather
+than using Telegram's restricted forward operation. Telegram still controls
+whether resources can be downloaded and whether the destination accepts a send.
+Screenshot badges, including the badge picker, display **ARIELGRAM**.
+
 ## Local Linux IPA build
 
 See [the xtool build guide](build-system/xtool/README.md) for dependencies and resource limitations.

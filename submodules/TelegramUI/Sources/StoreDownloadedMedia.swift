@@ -85,7 +85,7 @@ private final class DownloadedMediaStoreContext {
                     let peerTypeValue: MediaAutoSaveSettings.PeerType
                     switch peer {
                     case .user:
-                        if let cachedUserData = cachedData as? CachedUserData, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled) {
+                        if let cachedUserData = cachedData as? CachedUserData, !arielgramIgnoreChatProtection && (cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled)) {
                             return false
                         }
                         peerTypeValue = .users
@@ -94,7 +94,7 @@ private final class DownloadedMediaStoreContext {
                     case .legacyGroup:
                         peerTypeValue = .groups
                     case let .channel(channel):
-                        if channel.flags.contains(.copyProtectionEnabled) {
+                        if !arielgramIgnoreChatProtection && channel.flags.contains(.copyProtectionEnabled) {
                             return false
                         }
                         

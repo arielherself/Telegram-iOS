@@ -489,7 +489,7 @@ func _internal_clearStorage(account: Account, peerIds: Set<EnginePeer.Id>, inclu
 }
 
 private func extractMediaResourceIds(message: Message, resourceIds: inout Set<MediaResourceId>) {
-    for media in message.media {
+    for media in message.arielgramMediaForStorage {
         if let image = media as? TelegramMediaImage {
             for representation in image.representations {
                 resourceIds.insert(representation.resource.id)
@@ -499,6 +499,12 @@ private func extractMediaResourceIds(message: Message, resourceIds: inout Set<Me
                 resourceIds.insert(representation.resource.id)
             }
             resourceIds.insert(file.resource.id)
+            for alternative in file.alternativeRepresentations {
+                resourceIds.insert(alternative.resource.id)
+                for representation in alternative.previewRepresentations {
+                    resourceIds.insert(representation.resource.id)
+                }
+            }
         } else if let webpage = media as? TelegramMediaWebpage {
             if case let .Loaded(content) = webpage.content {
                 if let image = content.image {
@@ -726,6 +732,7 @@ func _internal_collectCacheUsageStats(account: Account, peerId: PeerId? = nil, a
                                 state.totalSize += resourceSize
                                 
                                 for reference in entry.references {
+                                    if state.processedResourceIds.contains(resourceId.stringRepresentation) { break }
                                     if reference.peerId == 0 {
                                         state.otherSize += resourceSize
                                         
@@ -736,7 +743,15 @@ func _internal_collectCacheUsageStats(account: Account, peerId: PeerId? = nil, a
                                         continue
                                     }
                                     if let message = transaction.getMessage(MessageId(peerId: PeerId(reference.peerId), namespace: MessageId.Namespace(reference.messageNamespace), id: reference.messageId)) {
-                                        for mediaItem in message.effectiveMedia {
+                                        for mediaItem in message.arielgramMediaForStorage {
+                                            var itemResourceIds: [MediaResourceId] = []
+                                            addMessageMediaResourceIdsToRemove(media: mediaItem, resourceIds: &itemResourceIds)
+                                            if let file = mediaItem as? TelegramMediaFile {
+                                                for alternative in file.alternativeRepresentations {
+                                                    addMessageMediaResourceIdsToRemove(media: alternative, resourceIds: &itemResourceIds)
+                                                }
+                                            }
+                                            guard itemResourceIds.contains(resourceId) else { continue }
                                             guard let mediaId = mediaItem.id else {
                                                 continue
                                             }
@@ -764,6 +779,7 @@ func _internal_collectCacheUsageStats(account: Account, peerId: PeerId? = nil, a
                                                 } else {
                                                     state.mediaResourceIds[mediaId] = [resourceId]
                                                 }
+                                                break
                                             }
                                         }
                                     }

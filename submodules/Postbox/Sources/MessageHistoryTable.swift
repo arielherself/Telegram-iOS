@@ -3210,6 +3210,21 @@ final class MessageHistoryTable: Table {
             }
             
             var parsedMedia: [Media] = []
+
+            let attributesData = message.attributesData.sharedBufferNoCopy()
+            if attributesData.length > 4 {
+                var attributeCount: Int32 = 0
+                attributesData.read(&attributeCount, offset: 0, length: 4)
+                for _ in 0 ..< attributeCount {
+                    var attributeLength: Int32 = 0
+                    attributesData.read(&attributeLength, offset: 0, length: 4)
+                    let decoder = PostboxDecoder(buffer: MemoryBuffer(memory: attributesData.memory + attributesData.offset, capacity: Int(attributeLength), length: Int(attributeLength), freeWhenDone: false))
+                    if let history = decoder.decodeRootObject() as? MessageMediaHistoryAttribute {
+                        parsedMedia.append(contentsOf: history.mediaForStorage)
+                    }
+                    attributesData.skip(Int(attributeLength))
+                }
+            }
             
             let embeddedMediaData = message.embeddedMediaData.sharedBufferNoCopy()
             if embeddedMediaData.length > 4 {

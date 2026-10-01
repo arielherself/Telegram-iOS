@@ -240,7 +240,7 @@ func chatHistoryEntriesForView(
             adminRank = adminRanks[author.id]
         }
         
-        if presentationData.largeEmoji, message.media.isEmpty {
+        if presentationData.largeEmoji, message.media.isEmpty, message.attributes.compactMap({ $0 as? ArielgramHistoryDisplayAttribute }).first?.previousText == nil {
             if messageIsEligibleForLargeCustomEmoji(EngineMessage(message)) {
                 contentTypeHint = .animatedEmoji
             } else if stickersEnabled && message.text.count == 1, let _ = associatedData.animatedEmojiStickers[message.text.basicEmoji.0], (message.textEntitiesAttribute?.entities.isEmpty ?? true) {

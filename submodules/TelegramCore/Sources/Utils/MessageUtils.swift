@@ -2,6 +2,9 @@ import Foundation
 import Postbox
 import TelegramApi
 
+/// Local viewing/copy policy; preserve Telegram protection metadata in storage.
+public let arielgramIgnoreChatProtection = true
+
 public extension MessageFlags {
     var isSending: Bool {
         return (self.contains(.Unsent) || self.contains(.Sending)) && !self.contains(.Failed)
@@ -391,6 +394,10 @@ public extension Message {
     }
     
     func isCopyProtected() -> Bool {
+        return !arielgramIgnoreChatProtection && self.arielgramHasServerCopyProtection
+    }
+
+    var arielgramHasServerCopyProtection: Bool {
         if self.flags.contains(.CopyProtected) {
             return true
         } else if let group = self.peers[self.id.peerId] as? TelegramGroup, group.flags.contains(.copyProtectionEnabled) {

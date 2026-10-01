@@ -73,7 +73,7 @@ struct AppBadgeSettingsView: View {
     
     private func onSelectBadge(_ badge: AppBadge) {
         self.selectedBadge = badge
-        let image = UIImage(bundleImageName: selectedBadge.assetName) ?? UIImage(bundleImageName: "Components/AppBadge")
+        let image = arielgramAppBadgeImage(style: selectedBadge.assetName)
         if self.context.sharedContext.immediateSGStatus.status > 1 {
             DispatchQueue.main.async {
                 SGSimpleSettings.shared.customAppBadge = selectedBadge.assetName
@@ -90,7 +90,7 @@ struct AppBadgeSettingsView: View {
                         onSelectBadge(badge)
                     } label: {
                         VStack(spacing: 8) {
-                            Image(badge.assetName)
+                            Image(uiImage: arielgramAppBadgeImage(style: badge.assetName) ?? UIImage())
                                 .resizable()
                                 .scaledToFit()
                                 .frame(height: Layout.imageHeight)

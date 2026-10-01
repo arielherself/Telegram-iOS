@@ -2473,6 +2473,16 @@ open class TextNode: ASDisplayNode, TextNodeProtocol {
                 context.resetClip()
             }
             
+            if let text = layout.attributedString, renderContentTypes.contains(.text) {
+                text.enumerateAttribute(.backgroundColor, in: NSRange(location: 0, length: text.length), options: []) { value, range, _ in
+                    guard let color = value as? UIColor, let rects = layout.rangeRects(in: range)?.rects else { return }
+                    context.setFillColor(color.cgColor)
+                    for rect in rects {
+                        context.fill(rect.offsetBy(dx: offset.x - layout.insets.left, dy: offset.y - layout.insets.top))
+                    }
+                }
+            }
+
             if let textShadowColor = layout.textShadowColor {
                 context.setTextDrawingMode(.fill)
                 context.setShadow(offset: layout.textShadowBlur != nil ? .zero : CGSize(width: 0.0, height: 1.0), blur: layout.textShadowBlur ?? 0.0, color: textShadowColor.cgColor)

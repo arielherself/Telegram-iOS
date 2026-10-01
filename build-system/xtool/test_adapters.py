@@ -14,6 +14,17 @@ from runtime import adapt
 from extensions import build_version, normalize_widget, validate_extension
 
 
+class MessageHistoryDiffTests(unittest.TestCase):
+    def test_full_text_unicode_and_diff_projections(self):
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            main = folder / 'main.swift'
+            main.write_text((Path(__file__).parent / 'tests/message_history_diff.swift').read_text())
+            subprocess.run(['swiftc', str(root / 'submodules/TelegramCore/Sources/Utils/ArielgramTextDiff.swift'), str(main), '-o', str(folder / 'tests')], check=True, capture_output=True)
+            subprocess.run([str(folder / 'tests')], check=True, capture_output=True)
+
+
 class ExtensionMetadataTests(unittest.TestCase):
     def binary(self):
         data = bytearray(128)

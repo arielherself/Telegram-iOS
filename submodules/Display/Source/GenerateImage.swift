@@ -1069,3 +1069,40 @@ public func convertSvgPath(_ path: StaticString) throws -> CGPath {
     
     return result
 }
+
+/// Draw the screenshot badge from the app name, rather than an upstream
+/// bitmap containing baked-in branding. Shared by the window and badge picker.
+public func arielgramAppBadgeImage(style: String = "") -> UIImage? {
+    let colors: (UInt32, UInt32)
+    switch style {
+    case "SkyAppBadge": colors = (0x3298dc, 0x77c9ed)
+    case "NightAppBadge": colors = (0x242844, 0x505887)
+    case "TitaniumAppBadge": colors = (0x68676b, 0x969599)
+    case "ProAppBadge": colors = (0x7955c9, 0xb076dc)
+    case "DayAppBadge": colors = (0xd99a39, 0xf5c763)
+    case "DuckyAppBadge": colors = (0xdfa831, 0xf1c851)
+    case "SparklingAppBadge": colors = (0x8057d9, 0xcd79c5)
+    default: colors = (0xf54824, 0xff733b)
+    }
+    return generateImage(CGSize(width: 93.0, height: 22.0), rotatedContext: { size, context in
+        let rect = CGRect(origin: .zero, size: size)
+        context.addPath(UIBezierPath(roundedRect: rect, cornerRadius: 11.0).cgPath)
+        context.clip()
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [UIColor(rgb: colors.0).cgColor, UIColor(rgb: colors.1).cgColor] as CFArray, locations: [0.0, 1.0]) {
+            context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: 0.0), options: [])
+        }
+        let bolt = UIBezierPath()
+        bolt.move(to: CGPoint(x: 13.0, y: 3.0))
+        bolt.addLine(to: CGPoint(x: 7.5, y: 12.0))
+        bolt.addLine(to: CGPoint(x: 12.0, y: 11.0))
+        bolt.addLine(to: CGPoint(x: 11.0, y: 19.0))
+        bolt.addLine(to: CGPoint(x: 18.0, y: 9.0))
+        bolt.addLine(to: CGPoint(x: 13.0, y: 10.0))
+        bolt.close()
+        context.setFillColor(UIColor.white.cgColor)
+        context.addPath(bolt.cgPath)
+        context.fillPath()
+        let text = NSAttributedString(string: "ARIELGRAM", attributes: [.font: UIFont.systemFont(ofSize: 10.5, weight: .semibold), .foregroundColor: UIColor.white, .kern: 0.2])
+        text.draw(at: CGPoint(x: 22.0, y: floor((size.height - text.size().height) / 2.0)))
+    })
+}

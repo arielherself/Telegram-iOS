@@ -539,7 +539,9 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
             }
             
             var updatedDateText = arguments.dateText
-            if arguments.edited {
+            // Deleted copies use the same date/status typography as edited
+            // messages, with deletion taking precedence over the edited label.
+            if arguments.edited && !arguments.dateText.hasPrefix("deleted ") {
                 if let useEditedTimestamp = arguments.context.getAppConfigValue("message_primary_edited_date") as? Bool, useEditedTimestamp {
                 } else {
                     updatedDateText = "\(arguments.presentationData.strings.Conversation_MessageEditedLabel) \(updatedDateText)"

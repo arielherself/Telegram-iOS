@@ -490,6 +490,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     private let selectedMessages: Signal<Set<MessageId>?, NoError>
     var messageTransitionNode: () -> ChatMessageTransitionNodeImpl?
     private let mode: ChatHistoryListMode
+    private let reverseMessageOrder: Bool
     
     var enableUnreadAlignment: Bool = true
     var areContentAnimationsEnabled: Bool = false
@@ -792,6 +793,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         controllerInteraction: ChatControllerInteraction,
         selectedMessages: Signal<Set<MessageId>?, NoError>,
         mode: ChatHistoryListMode = .bubbles,
+        reverseMessageOrder: Bool = false,
         rotated: Bool = false,
         isChatPreview: Bool,
         messageTransitionNode: @escaping () -> ChatMessageTransitionNodeImpl?
@@ -814,6 +816,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         self.selectedMessages = selectedMessages
         self.messageTransitionNode = messageTransitionNode
         self.mode = mode
+        self.reverseMessageOrder = reverseMessageOrder
         
         if SGSimpleSettings.shared.disableSnapDeletionEffect { self.allowDustEffect = false }
         if let data = context.currentAppConfiguration.with({ $0 }).data {
@@ -1399,6 +1402,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         let messageTransitionNode = self.messageTransitionNode
         let mode = self.mode
         let rotated = self.rotated
+        let reverseMessageOrder = self.reverseMessageOrder
         let systemStyle = self.systemStyle
         
         var resetScrollingMessageId: (index: MessageIndex, offset: CGFloat)?
@@ -2136,7 +2140,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 initialData = data
                 var updatedScrollPosition = scrollPosition
                 
-                var reverse = false
+                var reverse = reverseMessageOrder
                 var reverseGroups = false
                 var isMusicPlaylist = false
                 if case let .list(reverseValue, reverseGroupsValue, _, _, _, isMusicPlaylistValue) = mode {
@@ -2166,7 +2170,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                         }
                     } else if case let .cachedPeerData(_, cachedData) = entry, let cachedUserData = cachedData as? CachedUserData {
                         if !isCopyProtectionEnabled {
-                            isCopyProtectionEnabled = cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled)
+                            isCopyProtectionEnabled = !arielgramIgnoreChatProtection && (cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled))
                         }
                     }
                 }

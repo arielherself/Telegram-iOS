@@ -253,6 +253,8 @@ private func convertForwardedMediaForSecretChat(_ media: Media) -> Media {
 private func filterMessageAttributesForOutgoingMessage(_ attributes: [MessageAttribute]) -> [MessageAttribute] {
     return attributes.filter { attribute in
         switch attribute {
+        case _ as ArielgramReuploadCopiedMediaAttribute:
+            return true
         case _ as TextEntitiesMessageAttribute:
             return true
         case _ as RichTextMessageAttribute:
@@ -522,7 +524,8 @@ func opportunisticallyTransformMessageWithMedia(network: Network, postbox: Postb
 
 private func forwardedMessageToBeReuploaded(transaction: Transaction, id: MessageId) -> Message? {
     if let message = transaction.getMessage(id) {
-        if message.id.namespace != Namespaces.Message.Cloud {
+        let cachedProtection = (transaction.getPeerCachedData(peerId: id.peerId) as? CachedUserData).map { $0.flags.contains(.copyProtectionEnabled) || $0.flags.contains(.myCopyProtectionEnabled) } ?? false
+        if message.id.namespace != Namespaces.Message.Cloud || message.arielgramHistory?.deletedAt != nil || (arielgramIgnoreChatProtection && (message.arielgramHasServerCopyProtection || cachedProtection)) {
             return message
         } else {
             return nil
@@ -731,15 +734,26 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                         updatedMessages.append((true, .forward(source: replyToMessageId.messageId, threadId: threadId, grouping: .none, attributes: attributes, correlationId: nil)))
                     }
                 }
-            case let .forward(sourceId, threadId, _, _, _):
+            case let .forward(sourceId, threadId, grouping, requestedAttributes, correlationId):
                 if let sourceMessage = forwardedMessageToBeReuploaded(transaction: transaction, id: sourceId) {
-                    var mediaReference: AnyMediaReference?
-                    if sourceMessage.id.peerId.namespace == Namespaces.Peer.SecretChat {
-                        if let media = sourceMessage.media.first {
-                            mediaReference = .standalone(media: media)
+                    let mediaReference = sourceMessage.media.first.map { media -> AnyMediaReference in
+                        if sourceMessage.id.peerId.namespace == Namespaces.Peer.SecretChat {
+                            return .standalone(media: media)
                         }
+                        return .message(message: MessageReference(sourceMessage), media: media)
                     }
-                    updatedMessages.append((transformedMedia, .message(text: sourceMessage.text, attributes: sourceMessage.attributes, inlineStickers: [:], mediaReference: mediaReference, threadId: threadId, replyToMessageId: threadId.flatMap { EngineMessageReplySubject(messageId: MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: Int32(clamping: $0)), quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: [])))
+                    let hideCaptions = requestedAttributes.compactMap { $0 as? ForwardOptionsMessageAttribute }.first?.hideCaptions == true
+                    let text = hideCaptions && mediaReference != nil ? "" : sourceMessage.text
+                    var attributes = filterMessageAttributesForForwardedMessage(sourceMessage.attributes).filter { !($0 is ReplyMessageAttribute) && !($0 is InlineBotMessageAttribute) && !($0 is ForwardOptionsMessageAttribute) }
+                    if text.isEmpty { attributes.removeAll(where: { $0 is TextEntitiesMessageAttribute }) }
+                    attributes.append(contentsOf: filterMessageAttributesForForwardedMessage(requestedAttributes))
+                    if mediaReference != nil { attributes.append(ArielgramReuploadCopiedMediaAttribute()) }
+                    let groupingKey: Int64?
+                    switch grouping {
+                    case .auto: groupingKey = sourceMessage.groupingKey.map { $0 &+ peerId.toInt64() }
+                    case .none: groupingKey = nil
+                    }
+                    updatedMessages.append((transformedMedia, .message(text: text, attributes: attributes, inlineStickers: sourceMessage.associatedMedia.compactMapValues { $0 as? TelegramMediaFile }, mediaReference: mediaReference, threadId: threadId, replyToMessageId: threadId.flatMap { EngineMessageReplySubject(messageId: MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: Int32(clamping: $0)), quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: groupingKey, correlationId: correlationId, bubbleUpEmojiOrStickersets: [])))
                     continue outer
                 }
         }

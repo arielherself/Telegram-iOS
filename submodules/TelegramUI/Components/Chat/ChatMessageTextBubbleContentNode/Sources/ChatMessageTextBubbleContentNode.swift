@@ -445,6 +445,11 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                 }
                 
                 
+                if item.message.attributes.contains(where: { $0 is ArielgramHistoryDisplayAttribute }) {
+                    rawText = item.message.text
+                    messageEntities = item.message.attributes.compactMap { $0 as? TextEntitiesMessageAttribute }.first?.entities
+                }
+
                 if incoming && item.associatedData.isSuspiciousPeer, let entities = messageEntities {
                     messageEntities = entities.filter { entity in
                         switch entity.type {
@@ -632,6 +637,27 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                     attributedText = updatedString
                 }
                                 
+                if let history = item.message.attributes.compactMap({ $0 as? ArielgramHistoryDisplayAttribute }).first, let previousText = history.previousText {
+                    let oldText = stringWithAppliedEntities(previousText, entities: history.previousEntities, strings: item.presentationData.strings, dateTimeFormat: item.presentationData.dateTimeFormat, baseColor: messageTheme.primaryTextColor, linkColor: messageTheme.linkTextColor, baseQuoteTintColor: messageTheme.accentTextColor, baseFont: textFont, linkFont: textFont, boldFont: item.presentationData.messageBoldFont, italicFont: item.presentationData.messageItalicFont, boldItalicFont: item.presentationData.messageBoldItalicFont, fixedFont: item.presentationData.messageFixedFont, blockQuoteFont: item.presentationData.messageBlockQuoteFont, message: item.message)
+                    let diff = NSMutableAttributedString(string: "")
+                    for segment in arielgramTextDiff(previous: previousText, current: rawText) {
+                        let source = segment.kind == .removed ? oldText : attributedText
+                        guard NSMaxRange(segment.range) <= source.length else { continue }
+                        let part = NSMutableAttributedString(attributedString: source.attributedSubstring(from: segment.range))
+                        let range = NSRange(location: 0, length: part.length)
+                        switch segment.kind {
+                        case .unchanged:
+                            break
+                        case .removed:
+                            part.addAttribute(.backgroundColor, value: UIColor(rgb: 0xef5350, alpha: 0.18), range: range)
+                        case .added:
+                            part.addAttribute(.backgroundColor, value: UIColor(rgb: 0x66bb6a, alpha: 0.22), range: range)
+                        }
+                        diff.append(part)
+                    }
+                    attributedText = diff
+                }
+
                 var customTruncationToken: ((UIFont, Bool) -> NSAttributedString?)?
                 var maximumNumberOfLines: Int = 0
                 if item.presentationData.isPreview {
