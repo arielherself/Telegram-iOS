@@ -68,9 +68,38 @@ public final class ArielgramPeerProfileChangeAttribute: MessageAttribute, Messag
 /// Only membership learned through the normal member-list requests is cached.
 /// An explicit nonmember overrides older messages from that user.
 private struct ArielgramObservedGroupMembers: Codable {
+    private struct Observation: Codable {
+        let peerId: Int64
+        let timestamp: Int32
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case members, nonmembers, observations
+    }
+
     var members: Set<Int64> = []
     var nonmembers: Set<Int64> = []
-    var observedAt: [Int64: Int32]? = nil
+    var observedAt: [Int64: Int32] = [:]
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.members = try container.decode(Set<Int64>.self, forKey: .members)
+        self.nonmembers = try container.decode(Set<Int64>.self, forKey: .nonmembers)
+        let observations = try container.decodeIfPresent([Observation].self, forKey: .observations) ?? []
+        self.observedAt = Dictionary(observations.map { ($0.peerId, $0.timestamp) }, uniquingKeysWith: { max($0, $1) })
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.members, forKey: .members)
+        try container.encode(self.nonmembers, forKey: .nonmembers)
+        // The Postbox adapter supports homogeneous object arrays, but neither
+        // mixed numeric-key dictionaries nor generic primitive dictionary values.
+        let observations = self.observedAt.keys.sorted().map { Observation(peerId: $0, timestamp: self.observedAt[$0]!) }
+        try container.encode(observations, forKey: .observations)
+    }
 }
 
 private func arielgramMembersCacheId(_ groupId: PeerId) -> ItemCacheEntryId {
@@ -82,7 +111,7 @@ private func arielgramMembersCacheId(_ groupId: PeerId) -> ItemCacheEntryId {
 func arielgramObserveGroupParticipants(transaction: Transaction, groupId: PeerId, participants: [ChannelParticipant]) {
     let id = arielgramMembersCacheId(groupId)
     var cached = transaction.retrieveItemCacheEntry(id: id)?.get(ArielgramObservedGroupMembers.self) ?? ArielgramObservedGroupMembers()
-    var observedAt = cached.observedAt ?? [:]
+    var observedAt = cached.observedAt
     let timestamp = Int32(Date().timeIntervalSince1970)
     for participant in participants {
         let isMember: Bool
@@ -137,7 +166,7 @@ private func arielgramIsGroupMember(transaction: Transaction, userId: PeerId, gr
     }
     if let cached = transaction.retrieveItemCacheEntry(id: arielgramMembersCacheId(group.id))?.get(ArielgramObservedGroupMembers.self) {
         if cached.nonmembers.contains(userId.toInt64()) {
-            guard let timestamp = cached.observedAt?[userId.toInt64()] else { return false }
+            guard let timestamp = cached.observedAt[userId.toInt64()] else { return false }
             return transaction.hasMessageWithAuthor(peerId: group.id, namespace: Namespaces.Message.Cloud, authorId: userId, afterTimestamp: timestamp)
         }
         if cached.members.contains(userId.toInt64()) { return true }
@@ -242,7 +271,7 @@ func arielgramProcessProfileServiceMessage(transaction: Transaction, message: St
     if !membership.isEmpty {
         let id = arielgramMembersCacheId(message.id.peerId)
         var cached = transaction.retrieveItemCacheEntry(id: id)?.get(ArielgramObservedGroupMembers.self) ?? ArielgramObservedGroupMembers()
-        var observedAt = cached.observedAt ?? [:]
+        var observedAt = cached.observedAt
         for (peerId, isMember) in membership {
             if let timestamp = observedAt[peerId.toInt64()], timestamp > message.timestamp { continue }
             observedAt[peerId.toInt64()] = message.timestamp

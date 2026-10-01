@@ -33,7 +33,7 @@ do {
     let tx = makeTransaction()
     arielgramRecordPeerProfileChange(transaction: tx, previous: TelegramUser(userId, name: "Alice", photo: photo(1, thumb: Data([1, 2]))), updated: TelegramUser(userId, name: "Bob", photo: photo(2)))
     expect(tx.messages.count == 2, "simultaneous changes produce two records")
-    expect(tx.messages.values.allSatisfy { $0.flags.rawValue == 0 }, "no unread, sending, or chat-list bump flags")
+    expect(tx.messages.values.allSatisfy { $0.flags.rawValue == 0 }, "no incoming, unsent, or top-index flags")
     expect(tx.messages.values.allSatisfy { $0.id.namespace == 1 }, "observations stay in local namespace")
     let name = changes(tx).first { $0.kind == .name }!
     let avatar = changes(tx).first { $0.kind == .avatar }!
@@ -125,6 +125,31 @@ do {
 }
 // Loading archived join/leave messages must not overturn a freshly received
 // member list, and newer authored messages can supersede an older departure.
+// Exercise empty/nonempty roster entries using the actual CodableEntry storage
+// adapter, including user ids larger than Int32 and persisted departure times.
+do {
+    let tx = Transaction(); tx.chats.insert(channelId); tx.peers[channelId] = TelegramChannel(channelId, title: "Supergroup")
+    arielgramObserveGroupParticipants(transaction: tx, groupId: channelId, participants: [])
+    struct LegacyEmptyRoster: Codable {
+        let members: Set<Int64> = []
+        let nonmembers: Set<Int64> = []
+        let observedAt: [Int64: Int32]? = nil
+    }
+    let cacheId = tx.cache.keys.first!
+    tx.cache[cacheId] = CodableEntry(LegacyEmptyRoster())
+    let largeUserId = PeerId(value: 5_000_000_000)
+    arielgramObserveGroupParticipants(transaction: tx, groupId: channelId, participants: [.creator(largeUserId), .member(userId, 123, nil, nil, nil, nil)])
+    let restored = Transaction(); restored.chats = tx.chats; restored.peers = tx.peers
+    restored.cache = tx.cache.mapValues { CodableEntry(data: Data($0.data)) }
+    arielgramRecordPeerProfileChange(transaction: restored, previous: TelegramUser(largeUserId, name: "Before"), updated: TelegramUser(largeUserId, name: "After"))
+    expect(changes(restored).count == 1, "legacy empty cache upgrades and large member id survives real codec/reload")
+    let _ = arielgramProcessProfileServiceMessage(transaction: restored, message: native(channelId, action: .removedMembers(peerIds: [largeUserId])))
+    arielgramRecordPeerProfileChange(transaction: restored, previous: TelegramUser(largeUserId, name: "After"), updated: TelegramUser(largeUserId, name: "Later"))
+    expect(changes(restored).count == 1, "departure timestamp survives real cache codec")
+    arielgramObserveGroupParticipants(transaction: restored, groupId: channelId, participants: [.creator(largeUserId)])
+    arielgramRecordPeerProfileChange(transaction: restored, previous: TelegramUser(largeUserId, name: "Later"), updated: TelegramUser(largeUserId, name: "Returned"))
+    expect(changes(restored).count == 2, "normal member refresh supersedes persisted departure")
+}
 do {
     let tx = makeTransaction(); tx.chats.insert(channelId); tx.peers[channelId] = TelegramChannel(channelId, title: "Supergroup")
     arielgramObserveGroupParticipants(transaction: tx, groupId: channelId, participants: [.member(userId, 123, nil, nil, nil, nil)])

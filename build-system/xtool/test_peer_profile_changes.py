@@ -26,10 +26,12 @@ class PeerProfileChangeTests(unittest.TestCase):
             coding = coding.replace('NSMutableString()', 'NSMutableString(capacity: 0)')
             coding = coding.replace('hexString.appendFormat("%02x", UInt(bytes[i]))', 'hexString.append(String(format: "%02x", UInt(bytes[i])))')
             (folder / 'Coding.swift').write_text(coding)
+            cache_entry = (postbox / 'PreferencesEntry.swift').read_text().split('public final class PreferencesEntry:', 1)[0]
+            (folder / 'CacheEntry.swift').write_text(cache_entry.replace('public ', ''))
             policy = (ROOT / 'submodules/TelegramCore/Sources/SyncCore/SyncCore_ArielgramPeerProfileChanges.swift').read_text()
             (folder / 'Policy.swift').write_text(policy.replace('import Postbox\n', '').replace('public ', ''))
             (folder / 'main.swift').write_text((FIXTURES / 'peer_profile_change_policy.swift').read_text())
-            sources = [folder / 'Coding.swift', *postbox.glob('Utils/Encoder/*.swift'), *postbox.glob('Utils/Decoder/*.swift'), FIXTURES / 'peer_profile_change_models.swift', folder / 'Policy.swift', folder / 'main.swift']
+            sources = [folder / 'Coding.swift', folder / 'CacheEntry.swift', *postbox.glob('Utils/Encoder/*.swift'), *postbox.glob('Utils/Decoder/*.swift'), FIXTURES / 'peer_profile_change_models.swift', folder / 'Policy.swift', folder / 'main.swift']
             self.run_checked(['swiftc', '-I', str(folder), *map(str, sources), str(folder / 'murmur.o'), '-o', str(folder / 'tests')])
             self.run_checked([str(folder / 'tests')])
 

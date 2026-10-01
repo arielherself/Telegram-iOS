@@ -118,11 +118,6 @@ final class Message {
 }
 final class ValueBoxKey { var value: Int64 = 0; init(length: Int) {}; func setInt64(_ offset: Int, value: Int64) { self.value = value } }
 struct ItemCacheEntryId: Hashable { let collectionId: Int8; let value: Int64; init(collectionId: Int8, key: ValueBoxKey) { self.collectionId = collectionId; self.value = key.value } }
-struct CodableEntry {
-    let data: Data
-    init?<T: Encodable>(_ value: T) { guard let data = try? JSONEncoder().encode(value) else { return nil }; self.data = data }
-    func get<T: Decodable>(_ type: T.Type) -> T? { try? JSONDecoder().decode(type, from: self.data) }
-}
 struct BanInfo { var isMember: Bool }
 enum ChannelParticipant {
     case creator(PeerId)
