@@ -72,6 +72,8 @@ public final class SharedWakeupManager {
     
     private var inForeground: Bool = false
     private var hasActiveAudioSession: Bool = false
+    private var backgroundMonitoringEnabled: Bool = false
+    private var backgroundMonitoring: ArielgramBackgroundMonitoringController?
     private var activeExplicitExtensionTimer: SwiftSignalKit.Timer?
     private var activeExplicitExtensionTask: UIBackgroundTaskIdentifier?
     private var allowBackgroundTimeExtensionDeadline: Double?
@@ -119,6 +121,12 @@ public final class SharedWakeupManager {
         self.backgroundTimeRemaining = backgroundTimeRemaining
         self.acquireIdleExtension = acquireIdleExtension
         self.presentationData = presentationData
+
+        self.backgroundMonitoring = ArielgramBackgroundMonitoringController(audioSession: mediaManager.audioSession, updated: { [weak self] enabled in
+            guard let self else { return }
+            self.backgroundMonitoringEnabled = enabled
+            self.checkTasks()
+        })
         
         self.accountSettingsDisposable = (activeAccounts
         |> mapToSignal { activeAccounts -> Signal<Bool, NoError> in
@@ -993,7 +1001,7 @@ public final class SharedWakeupManager {
         
         var endTaskAfterTransactionsComplete: UIBackgroundTaskIdentifier?
         
-        if self.inForeground || self.hasActiveAudioSession || hasActiveCalls {
+        if self.inForeground || self.hasActiveAudioSession || hasActiveCalls || self.backgroundMonitoringEnabled {
             if let (completion, timer) = self.currentExternalCompletion {
                 self.currentExternalCompletion = nil
                 completion()
@@ -1135,18 +1143,18 @@ public final class SharedWakeupManager {
     private func updateAccounts(hasTasks: Bool, endTaskAfterTransactionsComplete: UIBackgroundTaskIdentifier?) {
         let hasBackgroundLocationTask = self.accountsAndTasks.contains(where: { $0.2.backgroundLocation })
         
-        if self.inForeground || self.hasActiveAudioSession || self.isInBackgroundExtension || self.backgroundProcessingTaskId != nil || self.backgroundStoryProcessingTaskId != nil || hasBackgroundLocationTask || (hasTasks && self.currentExternalCompletion != nil) || self.activeExplicitExtensionTimer != nil || self.silenceAudioRenderer != nil {
+        if self.inForeground || self.hasActiveAudioSession || self.backgroundMonitoringEnabled || self.isInBackgroundExtension || self.backgroundProcessingTaskId != nil || self.backgroundStoryProcessingTaskId != nil || hasBackgroundLocationTask || (hasTasks && self.currentExternalCompletion != nil) || self.activeExplicitExtensionTimer != nil || self.silenceAudioRenderer != nil {
             Logger.shared.log("Wakeup", "enableBeginTransactions: true (active)")
             
             for (account, primary, tasks) in self.accountsAndTasks {
                 account.postbox.setCanBeginTransactions(true)
                 
-                if (self.inForeground && primary) || !tasks.isEmpty || (self.activeExplicitExtensionTimer != nil && primary) {
+                if self.backgroundMonitoringEnabled || (self.inForeground && primary) || !tasks.isEmpty || (self.activeExplicitExtensionTimer != nil && primary) {
                     account.shouldBeServiceTaskMaster.set(.single(.always))
                 } else {
                     account.shouldBeServiceTaskMaster.set(.single(.never))
                 }
-                account.shouldExplicitelyKeepWorkerConnections.set(.single(tasks.backgroundAudio || tasks.backgroundLocation || tasks.importantTasks.pendingStoryCount != 0 || tasks.importantTasks.pendingMessageCount != 0))
+                account.shouldExplicitelyKeepWorkerConnections.set(.single(self.backgroundMonitoringEnabled || tasks.backgroundAudio || tasks.backgroundLocation || tasks.importantTasks.pendingStoryCount != 0 || tasks.importantTasks.pendingMessageCount != 0))
                 account.shouldKeepOnlinePresence.set(.single(primary && self.inForeground))
                 account.shouldKeepBackgroundDownloadConnections.set(.single(tasks.backgroundDownloads))
             }

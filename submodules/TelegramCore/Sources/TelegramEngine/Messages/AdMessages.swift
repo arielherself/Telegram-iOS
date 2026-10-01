@@ -1,6 +1,8 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
+
+let arielgramSponsoredMessagesEnabled = false
 import TelegramApi
 
 private class AdMessagesHistoryContextImpl {
@@ -450,6 +452,8 @@ private class AdMessagesHistoryContextImpl {
         self.messageId = messageId
 
         self.stateValue = State(interPostInterval: nil, messages: [])
+        self.state.set(.single(State(interPostInterval: nil, messages: [])))
+        guard arielgramSponsoredMessagesEnabled else { return }
 
         if messageId == nil {
             self.state.set(CachedState.getCached(postbox: account.postbox, peerId: peerId)
@@ -477,6 +481,7 @@ private class AdMessagesHistoryContextImpl {
     }
     
     func activate() {
+        guard arielgramSponsoredMessagesEnabled else { return }
         if self.isActivated {
             return
         }

@@ -4,6 +4,9 @@ import TelegramApi
 import SwiftSignalKit
 
 public struct ContentSettings: Equatable {
+    /// Arielgram displays all content delivered by Telegram, regardless of the
+    /// server's platform/reason lists or client-specific forced restrictions.
+    public var ignoresAllContentRestrictions: Bool { return true }
     public static var `default` = ContentSettings(ignoreContentRestrictionReasons: [], addContentRestrictionReasons: [], appConfiguration: AppConfiguration.defaultValue)
     
     public var ignoreContentRestrictionReasons: Set<String>
@@ -11,8 +14,8 @@ public struct ContentSettings: Equatable {
     public var appConfiguration: AppConfiguration
     
     public init(ignoreContentRestrictionReasons: Set<String>, addContentRestrictionReasons: [String], appConfiguration: AppConfiguration) {
-        self.ignoreContentRestrictionReasons = ignoreContentRestrictionReasons
-        self.addContentRestrictionReasons = addContentRestrictionReasons
+        self.ignoreContentRestrictionReasons = ignoreContentRestrictionReasons.union(["sensitive", "porn", "porn-ios"])
+        self.addContentRestrictionReasons = []
         self.appConfiguration = appConfiguration
     }
 }

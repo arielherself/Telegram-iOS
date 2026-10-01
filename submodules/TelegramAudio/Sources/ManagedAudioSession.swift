@@ -120,19 +120,21 @@ public enum AudioSessionOutputMode: Equatable {
 
 private final class HolderRecord {
     let id: Int32
+    let isBackground: Bool
     var audioSessionType: ManagedAudioSessionType
     let control: ManagedAudioSessionControl
     let activate: (ManagedAudioSessionControl) -> Void
     let deactivate: (Bool) -> Signal<Void, NoError>
     let headsetConnectionStatusChanged: (Bool) -> Void
     let availableOutputsChanged: ([AudioSessionOutput], AudioSessionOutput?) -> Void
-    let once: Bool
+    var once: Bool
     var outputMode: AudioSessionOutputMode
     var active: Bool = false
     var deactivatingDisposable: Disposable? = nil
     
-    init(id: Int32, audioSessionType: ManagedAudioSessionType, control: ManagedAudioSessionControl, activate: @escaping (ManagedAudioSessionControl) -> Void, deactivate: @escaping (Bool) -> Signal<Void, NoError>, headsetConnectionStatusChanged: @escaping (Bool) -> Void, availableOutputsChanged: @escaping ([AudioSessionOutput], AudioSessionOutput?) -> Void, once: Bool, outputMode: AudioSessionOutputMode) {
+    init(id: Int32, audioSessionType: ManagedAudioSessionType, control: ManagedAudioSessionControl, activate: @escaping (ManagedAudioSessionControl) -> Void, deactivate: @escaping (Bool) -> Signal<Void, NoError>, headsetConnectionStatusChanged: @escaping (Bool) -> Void, availableOutputsChanged: @escaping ([AudioSessionOutput], AudioSessionOutput?) -> Void, once: Bool, outputMode: AudioSessionOutputMode, isBackground: Bool) {
         self.id = id
+        self.isBackground = isBackground
         self.audioSessionType = audioSessionType
         self.control = control
         self.activate = activate
@@ -193,6 +195,8 @@ public class ManagedAudioSessionControl {
 }
 
 public final class ManagedAudioSessionClientParams {
+    /// A fallback playback holder yields to all ordinary media/call holders.
+    public let isBackground: Bool
     public let audioSessionType: ManagedAudioSessionType
     public let outputMode: AudioSessionOutputMode
     public let once: Bool
@@ -210,8 +214,10 @@ public final class ManagedAudioSessionClientParams {
         manualActivate: @escaping (ManagedAudioSessionControl) -> Void,
         deactivate: @escaping (Bool) -> Signal<Void, NoError>,
         headsetConnectionStatusChanged: @escaping (Bool) -> Void,
-        availableOutputsChanged: @escaping ([AudioSessionOutput], AudioSessionOutput?) -> Void
+        availableOutputsChanged: @escaping ([AudioSessionOutput], AudioSessionOutput?) -> Void,
+        isBackground: Bool = false
     ) {
+        self.isBackground = isBackground
         self.audioSessionType = audioSessionType
         self.outputMode = outputMode
         self.once = once
@@ -556,6 +562,7 @@ public final class ManagedAudioSessionImpl: NSObject, ManagedAudioSession {
         let deactivate = params.deactivate
         let headsetConnectionStatusChanged = params.headsetConnectionStatusChanged
         let availableOutputsChanged = params.availableOutputsChanged
+        let isBackground = params.isBackground
         
         let id = OSAtomicIncrement32(&self.nextId)
         let queue = self.queue
@@ -655,7 +662,11 @@ public final class ManagedAudioSessionImpl: NSObject, ManagedAudioSession {
                         availableOutputsChanged(strongSelf.availableOutputsValue, strongSelf.currentOutputValue)
                     }
                 }
-            }, deactivate: deactivate, headsetConnectionStatusChanged: headsetConnectionStatusChanged, availableOutputsChanged: availableOutputsChanged, once: once, outputMode: outputMode))
+            }, deactivate: deactivate, headsetConnectionStatusChanged: headsetConnectionStatusChanged, availableOutputsChanged: availableOutputsChanged, once: once, outputMode: outputMode, isBackground: isBackground))
+            if isBackground {
+                let holder = self.holders.removeLast()
+                self.holders.insert(holder, at: 0)
+            }
             self.updateHolders()
         }
         return ActionDisposable { [weak self] in
@@ -669,7 +680,19 @@ public final class ManagedAudioSessionImpl: NSObject, ManagedAudioSession {
 
     public func dropAll() {
         self.queue.async {
-            self.updateHolders(interruption: true)
+            guard self.holders.contains(where: { $0.isBackground }) else {
+                self.updateHolders(interruption: true)
+                return
+            }
+            // Paused players can retain their holders. Release them through
+            // normal deactivation, then let the background fallback resume.
+            // Calls and the fallback itself keep their session ownership.
+            for holder in self.holders where !holder.isBackground && holder.audioSessionType != .voiceCall && holder.audioSessionType != .videoCall {
+                holder.once = true
+            }
+            self.holders.removeAll(where: { !$0.isBackground && $0.audioSessionType != .voiceCall && $0.audioSessionType != .videoCall && !$0.active && $0.deactivatingDisposable == nil })
+            let interruptPlayback = self.holders.contains(where: { $0.active && !$0.isBackground && $0.audioSessionType != .voiceCall && $0.audioSessionType != .videoCall })
+            self.updateHolders(interruption: interruptPlayback)
         }
     }
     

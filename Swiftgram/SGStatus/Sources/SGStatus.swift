@@ -3,10 +3,13 @@ import SwiftSignalKit
 import TelegramCore
 
 public struct SGStatus: Equatable, Codable {
-    public var status: Int64
+    public var status: Int64 {
+        get { return 2 }
+        set { }
+    }
     
     public static var `default`: SGStatus {
-        return SGStatus(status: 1)
+        return SGStatus(status: 2)
     }
     
     public init(status: Int64) {

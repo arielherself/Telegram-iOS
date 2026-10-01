@@ -1,7 +1,7 @@
 # Arielgram
 
-An unofficial Telegram client for iOS, based on Telegram iOS and Swiftgram.
-It uses an independent app identity and can be installed alongside other clients.
+An unofficial Telegram client for iOS with local change tracking and an independent
+app identity. It can be installed alongside other clients.
 
 ## Features
 
@@ -58,7 +58,7 @@ See [service configuration](build-system/ios-build.md#service-configuration).
 ## Credits
 
 Built on [Telegram iOS](https://github.com/TelegramMessenger/Telegram-iOS) and
-[Swiftgram](https://github.com/Swiftgram/Telegram-iOS), using
+[the upstream client](https://github.com/Swiftgram/Telegram-iOS), using
 [xtool](https://github.com/xtool-org/xtool) for Linux builds. Component licenses apply.
 When distributing a fork, use your own API credentials, identify it as unofficial,
 follow Telegram's [security guidelines](https://core.telegram.org/mtproto/security_guidelines)

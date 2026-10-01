@@ -8,6 +8,7 @@ public extension EngineRawMessage {
     }
     
     func restrictionReason(platform: String, contentSettings: ContentSettings) -> String? {
+        if contentSettings.ignoresAllContentRestrictions { return nil }
         // MARK: Swiftgram
         if let author = self.author {
             let chatId = author.id.id._internalGetInt64Value()
@@ -28,6 +29,7 @@ public extension EngineRawMessage {
 
 public extension RestrictedContentMessageAttribute {
     func platformText(platform: String, contentSettings: ContentSettings, chatId: Int64? = nil) -> String? {
+        if contentSettings.ignoresAllContentRestrictions { return nil }
         // MARK: Swiftgram
         if let chatId = chatId {
             if contentSettings.appConfiguration.sgWebSettings.global.forceReasons.contains(chatId) {

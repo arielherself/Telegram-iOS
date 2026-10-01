@@ -12,6 +12,7 @@ import ItemListPeerItem
 import DeviceAccess
 import TelegramStringFormatting
 import PeerNameColorItem
+import SGSimpleSettings
 
 enum SettingsSection: Int, CaseIterable {
     case edit
@@ -229,6 +230,12 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
     items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 1, label: swiftgramLabel, text: "Arielgram", icon: PresentationResourcesSettings.swiftgram, action: {
         interaction.openSettings(.swiftgram)
     }))
+    let isChinese = presentationData.strings.baseLanguageCode.lowercased().hasPrefix("zh")
+    items[.swiftgram]!.append(PeerInfoScreenSwitchItem(id: 2, text: isChinese ? "后台消息监控" : "Background Message Monitoring", value: SGSimpleSettings.shared.arielgramBackgroundMonitoring, icon: PresentationResourcesSettings.notifications, toggled: { value in
+        SGSimpleSettings.shared.arielgramBackgroundMonitoring = value
+        interaction.requestLayout(false)
+    }))
+    items[.swiftgram]!.append(PeerInfoScreenCommentItem(id: 3, text: isChinese ? "在后台持续接收更新，保留消息编辑和删除记录。开启后会增加耗电；强制结束应用后无法继续记录。" : "Keep receiving updates in the background to retain message edits and deletions. Uses more battery; monitoring stops if the app is force closed."))
 
     var appIndex = 1000
     if let settings = data.globalSettings {

@@ -93,6 +93,7 @@ public class SGSimpleSettings {
     }
     
     public enum Keys: String, CaseIterable {
+        case arielgramBackgroundMonitoring
         case hidePhoneInSettings
         case showTabNames
         case startTelescopeWithRearCam
@@ -252,6 +253,7 @@ public class SGSimpleSettings {
     }
     
     public static let defaultValues: [String: Any] = [
+        Keys.arielgramBackgroundMonitoring.rawValue: false,
         Keys.hidePhoneInSettings.rawValue: true,
         Keys.showTabNames.rawValue: true,
         Keys.startTelescopeWithRearCam.rawValue: false,
@@ -335,7 +337,7 @@ public class SGSimpleSettings {
         Keys.legacyNotificationsFix.rawValue: false,
         Keys.pinnedMessageNotifications.rawValue: PinnedMessageNotificationsSettings.default.rawValue,
         Keys.mentionsAndRepliesNotifications.rawValue: MentionsAndRepliesNotificationsSettings.default.rawValue,
-        Keys.status.rawValue: 1,
+        Keys.status.rawValue: 2,
         Keys.showRepostToStoryV2.rawValue: true,
     ]
     
@@ -543,10 +545,24 @@ public class SGSimpleSettings {
     @UserDefault(key: Keys.legacyNotificationsFix.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
     public var legacyNotificationsFix: Bool
     
-    @UserDefault(key: Keys.status.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
-    public var status: Int64
+    public static let arielgramBackgroundMonitoringChanged = Notification.Name("ArielgramBackgroundMonitoringChanged")
 
-    public var ephemeralStatus: Int64 = 1
+    @UserDefault(key: Keys.arielgramBackgroundMonitoring.rawValue)
+    public var arielgramBackgroundMonitoring: Bool {
+        didSet {
+            NotificationCenter.default.post(name: Self.arielgramBackgroundMonitoringChanged, object: nil)
+        }
+    }
+
+    public var status: Int64 {
+        get { return 2 }
+        set { }
+    }
+
+    public var ephemeralStatus: Int64 {
+        get { return 2 }
+        set { }
+    }
     
     @UserDefault(key: Keys.messageFilterKeywords.rawValue)
     public var messageFilterKeywords: [String]
