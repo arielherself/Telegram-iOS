@@ -2533,6 +2533,7 @@ final class TextContentItemLayer: SimpleLayer {
                     }
                     
                     context.textPosition = CGPoint(x: lineFrame.minX, y: lineFrame.maxY - line.descent)
+                    drawTextRunBackgrounds(line.line, in: context, at: context.textPosition, displayContentsUnderSpoilers: params.item.displayContentsUnderSpoilers)
                         
                     let glyphRuns = CTLineGetGlyphRuns(line.line) as NSArray
                     

@@ -649,9 +649,9 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                         case .unchanged:
                             break
                         case .removed:
-                            part.addAttribute(.backgroundColor, value: UIColor(rgb: 0xef5350, alpha: 0.18), range: range)
+                            part.addAttribute(textNodeBackgroundColorAttribute, value: UIColor(rgb: 0xef5350, alpha: 0.18), range: range)
                         case .added:
-                            part.addAttribute(.backgroundColor, value: UIColor(rgb: 0x66bb6a, alpha: 0.22), range: range)
+                            part.addAttribute(textNodeBackgroundColorAttribute, value: UIColor(rgb: 0x66bb6a, alpha: 0.22), range: range)
                         }
                         diff.append(part)
                     }

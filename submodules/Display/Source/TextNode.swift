@@ -4,6 +4,50 @@ import AsyncDisplayKit
 import CoreText
 import AppBundle
 
+/// A background painted at the glyph baseline by our text renderers. Unlike
+/// NSBackgroundColor, this does not ask CoreText to paint a second background.
+public let textNodeBackgroundColorAttribute = NSAttributedString.Key("TextNodeBackgroundColor")
+
+public func drawTextRunBackgrounds(_ line: CTLine, in context: CGContext, at baseline: CGPoint, displayContentsUnderSpoilers: Bool = true) {
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.setShadow(offset: .zero, blur: 0.0, color: nil)
+    for run in CTLineGetGlyphRuns(line) as NSArray {
+        let run = run as! CTRun
+        let attributes = CTRunGetAttributes(run) as NSDictionary
+        guard let color = attributes[textNodeBackgroundColorAttribute.rawValue] as? UIColor else {
+            continue
+        }
+        if !displayContentsUnderSpoilers && (attributes["Attribute__Spoiler"] != nil || attributes["TelegramSpoiler"] != nil) {
+            continue
+        }
+        let glyphCount = CTRunGetGlyphCount(run)
+        guard glyphCount > 0 else {
+            continue
+        }
+        var ascent: CGFloat = 0.0
+        var descent: CGFloat = 0.0
+        CTRunGetTypographicBounds(run, CFRangeMake(0, glyphCount), &ascent, &descent, nil)
+        var positions = [CGPoint](repeating: .zero, count: glyphCount)
+        var advances = [CGSize](repeating: .zero, count: glyphCount)
+        CTRunGetPositions(run, CFRangeMake(0, glyphCount), &positions)
+        CTRunGetAdvances(run, CFRangeMake(0, glyphCount), &advances)
+        var rect = CGRect.null
+        for glyphIndex in 0 ..< glyphCount {
+            let position = positions[glyphIndex]
+            let advance = advances[glyphIndex].width
+            rect = rect.union(CGRect(
+                x: baseline.x + position.x + min(0.0, advance),
+                y: baseline.y - position.y - ascent,
+                width: abs(advance),
+                height: ascent + descent
+            ))
+        }
+        context.setFillColor(color.cgColor)
+        context.fill(rect)
+    }
+}
+
 private let defaultFont = UIFont.systemFont(ofSize: 15.0)
 
 private let quoteIcon: UIImage = {
@@ -2533,43 +2577,8 @@ open class TextNode: ASDisplayNode, TextNodeProtocol {
                     
                 let glyphRuns = CTLineGetGlyphRuns(line.line) as NSArray
 
-                // Use the same baseline and glyph positions as CTRunDraw. Selection
-                // rectangles include layout offsets that differ from drawing offsets.
                 if renderContentTypes.contains(.text) {
-                    context.saveGState()
-                    context.setShadow(offset: .zero, blur: 0.0, color: nil)
-                    for run in glyphRuns {
-                        let run = run as! CTRun
-                        let attributes = CTRunGetAttributes(run) as NSDictionary
-                        guard let color = attributes[NSAttributedString.Key.backgroundColor.rawValue] as? UIColor else {
-                            continue
-                        }
-                        let glyphCount = CTRunGetGlyphCount(run)
-                        guard glyphCount > 0 else {
-                            continue
-                        }
-                        var ascent: CGFloat = 0.0
-                        var descent: CGFloat = 0.0
-                        CTRunGetTypographicBounds(run, CFRangeMake(0, glyphCount), &ascent, &descent, nil)
-                        var positions = [CGPoint](repeating: .zero, count: glyphCount)
-                        var advances = [CGSize](repeating: .zero, count: glyphCount)
-                        CTRunGetPositions(run, CFRangeMake(0, glyphCount), &positions)
-                        CTRunGetAdvances(run, CFRangeMake(0, glyphCount), &advances)
-                        var rect = CGRect.null
-                        for glyphIndex in 0 ..< glyphCount {
-                            let position = positions[glyphIndex]
-                            let advance = advances[glyphIndex].width
-                            rect = rect.union(CGRect(
-                                x: lineFrame.minX + position.x + min(0.0, advance),
-                                y: lineFrame.minY - position.y - ascent,
-                                width: abs(advance),
-                                height: ascent + descent
-                            ))
-                        }
-                        context.setFillColor(color.cgColor)
-                        context.fill(rect)
-                    }
-                    context.restoreGState()
+                    drawTextRunBackgrounds(line.line, in: context, at: context.textPosition)
                 }
                 
                 if glyphRuns.count != 0 {
