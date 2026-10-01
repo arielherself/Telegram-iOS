@@ -8270,8 +8270,19 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
         let timestamp = Int32(Date().timeIntervalSince1970)
         var interfaceState = self.presentationInterfaceState.interfaceState.withUpdatedTimestamp(timestamp)
         if includeScrollState {
-            let scrollState = self.chatDisplayNode.historyNode.immediateScrollState()
-            interfaceState = interfaceState.withUpdatedHistoryScrollState(scrollState)
+            let preserveBottom: Bool
+            if let channel = self.presentationInterfaceState.renderedPeer?.peer as? TelegramChannel, case .left = channel.participationStatus {
+                preserveBottom = true
+            } else {
+                preserveBottom = false
+            }
+            let scrollState = self.chatDisplayNode.historyNode.immediateScrollState(preserveBottom: preserveBottom)
+            // A preview has no unread counter to restore from. Keep the last
+            // visible message even at the bottom, and don't erase an existing
+            // anchor when a loading/empty history has no visible message yet.
+            if scrollState != nil || !preserveBottom {
+                interfaceState = interfaceState.withUpdatedHistoryScrollState(scrollState)
+            }
         }
         interfaceState = interfaceState.withUpdatedInputLanguage(self.chatDisplayNode.currentTextInputLanguage)
         let _ = ChatInterfaceState.update(engine: self.context.engine, peerId: peerId, threadId: threadId, { _ in

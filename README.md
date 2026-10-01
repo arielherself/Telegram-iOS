@@ -10,6 +10,8 @@ app identity. It can be installed alongside other clients.
   displayed as complete message bubbles with text differences and changed-media badges.
 - **Profile changes:** local system messages for observed name and avatar changes
   in private chats, groups, group members, and channels, with old/new avatar previews.
+- **Watchlist:** bookmark public groups and channels without joining. A separate
+  home tab shows their names and avatars; chats reopen at your last reading position.
 - **Protected chats:** allow screenshots, copying, saving, sharing, and forwarding.
 - **Content visibility:** ignore client content restrictions, including `porn-ios`.
 - **No sponsored ads:** hide Telegram sponsored messages and search placements.
@@ -23,8 +25,9 @@ versions or profile changes. Each message version retains its own content; artic
 pages are preserved without text diff highlighting. Secret chats and timed
 disappearing messages keep their normal deletion behavior.
 
-Records are local and follow chat/account cleanup. Media and avatars use the normal
-cache and may become unavailable after automatic or manual storage clearing.
+History and profile records are local and follow chat/account cleanup. Media and
+avatars use the normal cache and may become unavailable after automatic or manual
+storage clearing.
 
 **Background Message Monitoring** is available on the settings home page and off
 by default. It uses silent audio mixed with other apps and yields to in-app media

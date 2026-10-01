@@ -169,6 +169,10 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
     
     private let actionDisposable = MetaDisposable()
     private let badgeDisposable = MetaDisposable()
+    private let watchActionDisposable = MetaDisposable()
+    private var watchlistDisposable: Disposable?
+    private var watchPeerId: EnginePeer.Id?
+    private var isWatched = false
     private var isJoining: Bool = false
     
     private var presentationInterfaceState: ChatPresentationInterfaceState?
@@ -184,6 +188,8 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
     deinit {
         self.actionDisposable.dispose()
         self.badgeDisposable.dispose()
+        self.watchActionDisposable.dispose()
+        self.watchlistDisposable?.dispose()
     }
     
     override public func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -203,6 +209,17 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
 
     @objc private func suggestedPostPressed() {
         self.interfaceInteraction?.openMonoforum()
+    }
+
+    private func refreshWatchLayout() {
+        if let (width, leftInset, rightInset, bottomInset, additionalSideInsets, maxHeight, maxOverlayHeight, isSecondary, metrics, deviceMetrics) = self.layoutData, let interfaceState = self.presentationInterfaceState {
+            let _ = self.updateLayout(width: width, leftInset: leftInset, rightInset: rightInset, bottomInset: bottomInset, additionalSideInsets: additionalSideInsets, maxHeight: maxHeight, maxOverlayHeight: maxOverlayHeight, isSecondary: isSecondary, transition: .immediate, interfaceState: interfaceState, metrics: metrics, deviceMetrics: deviceMetrics, force: true)
+        }
+    }
+
+    private func watchPressed() {
+        guard let context = self.context, let peerId = self.watchPeerId else { return }
+        self.watchActionDisposable.set(arielgramSetPeerWatched(account: context.account, peerId: peerId, watched: !self.isWatched).start())
     }
     
     @objc private func buttonPressed() {
@@ -414,6 +431,20 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
         }
         
         self.presentationInterfaceState = interfaceState
+
+        if let context = self.context, let peer = interfaceState.renderedPeer?.peer, self.watchPeerId != peer.id {
+            self.watchlistDisposable?.dispose()
+            self.watchPeerId = peer.id
+            self.isWatched = false
+            self.watchlistDisposable = (arielgramWatchlist(account: context.account)
+            |> map { $0.contains(peer.id) }
+            |> distinctUntilChanged
+            |> deliverOnMainQueue).start(next: { [weak self] watched in
+                guard let self, self.watchPeerId == peer.id, self.isWatched != watched else { return }
+                self.isWatched = watched
+                self.refreshWatchLayout()
+            })
+        }
         
         var centerAction: (title: String, isAccent: Bool)?
         if let context = self.context, let peer = interfaceState.renderedPeer?.peer, let action = actionForPeer(context: context, peer: EnginePeer(peer), interfaceState: interfaceState, isJoining: self.isJoining, isMuted: interfaceState.peerIsMuted) {
@@ -483,14 +514,26 @@ public final class ChatChannelSubscriberInputPanelNode: ChatInputPanelNode {
         
         var centerPanelItem: GlassControlPanelComponent.Item?
         if let centerAction {
+            var items: [GlassControlGroupComponent.Item] = []
+            let displaysWatch: Bool
+            switch self.action {
+            case .join, .joinGroup, .applyToJoin:
+                displaysWatch = interfaceState.renderedPeer?.peer.map { arielgramCanWatchPeer($0) || self.isWatched } ?? false
+            default:
+                displaysWatch = false
+            }
+            if displaysWatch {
+                items.append(GlassControlGroupComponent.Item(id: "watch", content: .text(self.isWatched ? "Unwatch" : "Watch"), action: { [weak self] in
+                    self?.watchPressed()
+                }))
+            }
+            if !displaysWatch || !self.isWatched {
+                items.append(GlassControlGroupComponent.Item(id: "primary", content: .text(centerAction.title), action: { [weak self] in
+                    self?.buttonPressed()
+                }))
+            }
             centerPanelItem = GlassControlPanelComponent.Item(
-                items: [GlassControlGroupComponent.Item(
-                    id: 0,
-                    content: .text(centerAction.title),
-                    action: { [weak self] in
-                        self?.buttonPressed()
-                    }
-                )],
+                items: items,
                 background: centerAction.isAccent ? .activeTint(inset: true) : .panel,
                 keepWide: true
             )

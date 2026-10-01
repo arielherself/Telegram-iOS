@@ -4974,6 +4974,20 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     override public func toolbarActionSelected(action: ToolbarActionOption) {
         let peerIds = self.chatListDisplayNode.effectiveContainerNode.currentItemNode.currentState.selectedPeerIds
         let threadIds = self.chatListDisplayNode.effectiveContainerNode.currentItemNode.currentState.selectedThreadIds
+        if !self.chatListDisplayNode.effectiveContainerNode.currentItemNode.currentState.editing,
+           case let .forum(peerId) = self.chatListDisplayNode.effectiveContainerNode.location,
+           let locationContext = self.effectiveContext, locationContext.showsWatchAction {
+            let togglesWatch: Bool
+            switch action {
+            case .left: togglesWatch = !locationContext.isWatched
+            case .middle: togglesWatch = locationContext.isWatched
+            default: togglesWatch = false
+            }
+            if togglesWatch {
+                self.actionDisposables.add(arielgramSetPeerWatched(account: self.context.account, peerId: peerId, watched: !locationContext.isWatched).start())
+                return
+            }
+        }
         if case .left = action {
             let signal: Signal<Never, NoError>
             var completion: (() -> Void)?
@@ -6862,6 +6876,8 @@ private final class ChatListLocationContext {
     }
     
     private(set) var toolbar: Toolbar?
+    private(set) var isWatched = false
+    private(set) var showsWatchAction = false
     
     private let previousEditingAndNetworkStateValue = Atomic<(Bool, AccountNetworkState)?>(value: nil)
     
@@ -7114,12 +7130,15 @@ private final class ChatListLocationContext {
         self.stateDisposable = combineLatest(queue: .mainQueue(),
             parentController.updatedPresentationData.1,
             peerIdsAndOptions,
-            peerView
-        ).startStrict(next: { [weak self, weak containerNode] presentationData, peerIdsAndOptions, peerView in
+            peerView,
+            arielgramWatchlist(account: context.account)
+        ).startStrict(next: { [weak self, weak containerNode] presentationData, peerIdsAndOptions, peerView, watchlist in
             guard let strongSelf = self, let containerNode = containerNode, let parentController = strongSelf.parentController else {
                 return
             }
             var toolbar: Toolbar?
+            strongSelf.isWatched = peerView.map { watchlist.contains($0.peerId) } ?? false
+            strongSelf.showsWatchAction = false
             if let (options, peerIds, _) = peerIdsAndOptions {
                 if case .chatList(.root) = location {
                     let leftAction: ToolbarAction
@@ -7185,7 +7204,8 @@ private final class ChatListLocationContext {
                         }
                         
                     }
-                    toolbar = Toolbar(leftAction: nil, rightAction: nil, middleAction: ToolbarAction(title: actionTitle, isEnabled: true))
+                    strongSelf.showsWatchAction = arielgramCanWatchPeer(channel) || strongSelf.isWatched
+                    toolbar = Toolbar(leftAction: strongSelf.showsWatchAction && !strongSelf.isWatched ? ToolbarAction(title: "Watch", isEnabled: true) : nil, rightAction: nil, middleAction: ToolbarAction(title: strongSelf.isWatched ? "Unwatch" : actionTitle, isEnabled: true))
                 }
             }
             var transition: ContainedViewLayoutTransition = .immediate

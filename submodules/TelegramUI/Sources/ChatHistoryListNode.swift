@@ -4757,7 +4757,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         return currentMessage.flatMap(EngineMessage.init)
     }
     
-    func immediateScrollState() -> ChatInterfaceHistoryScrollState? {
+    func immediateScrollState(preserveBottom: Bool = false) -> ChatInterfaceHistoryScrollState? {
         var currentMessage: Message?
         if let historyView = self.historyView {
             if let visibleRange = self.listView.displayedItemRange.visibleRange {
@@ -4768,12 +4768,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                             if message.adAttribute != nil {
                                 continue
                             }
-                            if index != 0 || historyView.originalView.laterId != nil {
+                            if preserveBottom || index != 0 || historyView.originalView.laterId != nil {
                                 currentMessage = message
                             }
                             break loop
                         } else if case let .MessageGroupEntry(_, messages, _) = entry {
-                            if index != 0 || historyView.originalView.laterId != nil {
+                            if preserveBottom || index != 0 || historyView.originalView.laterId != nil {
                                 currentMessage = messages.first?.0
                             }
                             break loop

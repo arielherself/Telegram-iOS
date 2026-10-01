@@ -79,6 +79,7 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
     public var contactsController: ContactsController?
     public var callListController: CallListController?
     public var chatListController: ChatListController?
+    private var watchlistController: ViewController?
     public var accountSettingsController: PeerInfoScreen?
     
     private var permissionsDisposable: Disposable?
@@ -223,6 +224,8 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
             controllers.append(callListController)
         }
         controllers.append(chatListController)
+        let watchlistController = arielgramWatchlistController(context: self.context)
+        controllers.append(watchlistController)
         
         var restoreSettignsController: (ViewController & SettingsController)?
         if let sharedContext = self.context.sharedContext as? SharedAccountContextImpl {
@@ -243,11 +246,12 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
         accountSettingsController.parentController = self
         controllers.append(accountSettingsController)
                 
-        tabBarController.setControllers(controllers, selectedIndex: restoreSettignsController != nil ? (controllers.count - 1) : (controllers.count - 2))
+        tabBarController.setControllers(controllers, selectedIndex: restoreSettignsController != nil ? (controllers.count - 1) : controllers.firstIndex(where: { $0 === chatListController }))
         
         self.contactsController = contactsController
         self.callListController = callListController
         self.chatListController = chatListController
+        self.watchlistController = watchlistController
         self.accountSettingsController = accountSettingsController
         self.rootTabController = tabBarController
         self.pushViewController(tabBarController, animated: false)
@@ -265,6 +269,7 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
             controllers.append(self.callListController!)
         }
         controllers.append(self.chatListController!)
+        if let watchlistController = self.watchlistController { controllers.append(watchlistController) }
         controllers.append(self.accountSettingsController!)
         
         rootTabController.setControllers(controllers, selectedIndex: nil)
