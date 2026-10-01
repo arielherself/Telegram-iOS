@@ -1,5 +1,9 @@
 import ast
+import ctypes
 from pathlib import Path
+import plistlib
+import struct
+import subprocess
 import tempfile
 import unittest
 
@@ -7,6 +11,91 @@ from clang_compat import arguments
 from graph import Graph, canonical, literal
 from linux_resources import LinuxResources
 from runtime import adapt
+from extensions import build_version, normalize_widget, validate_extension
+
+
+class ExtensionMetadataTests(unittest.TestCase):
+    def binary(self):
+        data = bytearray(128)
+        struct.pack_into('<8I', data, 0, 0xfeedfacf, 0x100000c, 0, 2, 2, 56, 0, 0)
+        struct.pack_into('<IIQQ', data, 32, 0x80000028, 24, 96, 0)
+        struct.pack_into('<8I', data, 56, 0x32, 32, 2, 13 << 16, 13 << 16, 1, 3, 21 << 16)
+        return bytes(data)
+
+    def info(self):
+        return {'MinimumOSVersion': '13.0', 'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.widgetkit-extension'}}
+
+    def test_metadata_correction_preserves_entry_point_and_flags(self):
+        original = self.binary()
+        info = self.info()
+        fixed = normalize_widget(info, original, '26.2')
+        self.assertEqual(fixed[:68], original[:68])
+        self.assertEqual(fixed[76:], original[76:])
+        self.assertEqual(build_version(fixed)[2:], (14 << 16, (26 << 16) | (2 << 8)))
+        self.assertEqual(info['MinimumOSVersion'], '14.0')
+        self.assertEqual(info['DTSDKName'], 'iphoneos26.2')
+        validate_extension(info, fixed, widget=True)
+        self.assertEqual(normalize_widget(info, fixed, '26.2'), fixed)
+
+    def test_old_widget_metadata_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'iOS 14'):
+            validate_extension(self.info(), self.binary(), widget=True)
+
+    def test_today_extension_cannot_replace_widgetkit(self):
+        info = {'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.widget-extension', 'NSExtensionPrincipalClass': 'TodayViewController'}}
+        with self.assertRaisesRegex(ValueError, 'WidgetKit extension point'):
+            validate_extension(info, self.binary(), widget=True)
+
+    def test_class_based_extension_requires_string_entry(self):
+        info = {'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.share-services'}}
+        with self.assertRaisesRegex(ValueError, 'principal class'):
+            validate_extension(info, b'')
+        info['NSExtension']['NSExtensionPrincipalClass'] = 'ShareRootController'
+        validate_extension(info, b'')
+
+
+class SignedEntitlementsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.directory = tempfile.TemporaryDirectory()
+        folder = Path(cls.directory.name)
+        header = Path(__file__).resolve().parents[2] / 'submodules/BuildConfig/PublicHeaders/BuildConfig/SignedEntitlements.h'
+        source = folder / 'reader.c'
+        source.write_text('#include "SignedEntitlements.h"\nconst unsigned char *read_entitlements(const unsigned char *bytes, size_t length, size_t *xmlLength) { return BCSignedEntitlements(bytes, length, xmlLength); }\n')
+        subprocess.run(['cc', '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror', '-I' + str(header.parent), str(source), '-o', str(folder / 'reader.so')], check=True)
+        cls.library = ctypes.CDLL(str(folder / 'reader.so'))
+        cls.read = cls.library.read_entitlements
+        cls.read.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
+        cls.read.restype = ctypes.c_void_p
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.directory.cleanup()
+
+    def binary(self, permissions):
+        xml = plistlib.dumps(permissions)
+        signature = struct.pack('>5I', 0xfade0cc0, 28 + len(xml), 1, 5, 20) + struct.pack('>2I', 0xfade7171, 8 + len(xml)) + xml
+        header = struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 2, 1, 16, 0, 0)
+        return header + struct.pack('<4I', 0x1d, 16, 48, len(signature)) + signature
+
+    def parse(self, data):
+        length = ctypes.c_size_t()
+        xml = self.read(data, len(data), ctypes.byref(length))
+        return plistlib.loads(ctypes.string_at(xml, length.value)) if xml else None
+
+    def test_capabilities_come_from_current_signature(self):
+        cloud = {'com.apple.developer.icloud-services': ['CloudKit'], 'com.apple.developer.icloud-container-identifiers': ['iCloud.xyz.arielherself.Arielgram']}
+        self.assertEqual(self.parse(self.binary(cloud)), cloud)
+        self.assertEqual(self.parse(self.binary({'application-identifier': 'TEAM.xyz.arielherself.Arielgram'})), {'application-identifier': 'TEAM.xyz.arielherself.Arielgram'})
+
+    def test_truncated_or_out_of_bounds_signature_is_rejected(self):
+        binary = self.binary({})
+        for size in range(len(binary)):
+            self.assertIsNone(self.parse(binary[:size]))
+        for offset, format in ((20, '<I'), (36, '<I'), (40, '<I'), (52, '>I'), (56, '>I'), (64, '>I'), (72, '>I')):
+            corrupt = bytearray(binary)
+            struct.pack_into(format, corrupt, offset, 0xffffffff)
+            self.assertIsNone(self.parse(bytes(corrupt)), f'offset {offset}')
 
 
 class GraphTests(unittest.TestCase):

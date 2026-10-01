@@ -24,6 +24,7 @@ swift_library(
         "-warnings-as-errors",
     ],
     deps = sgdeps + [
+        "//submodules/BuildConfig:BuildConfig",
         "//submodules/TelegramApi:TelegramApi",
         "//submodules/MtProtoKit:MtProtoKit",
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

@@ -10,9 +10,13 @@ import subprocess
 import tempfile
 import zipfile
 
+from extensions import normalize_widget
 
-def fix(ipa, configuration, ldid, refresh_resources=False):
+
+def fix(ipa, configuration, ldid, refresh_resources=False, sdk=None):
     config = json.loads(configuration.read_text())
+    sdk = sdk or Path.home() / '.swiftpm/swift-sdks/darwin.artifactbundle/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk'
+    sdk_version = json.loads((sdk / 'SDKSettings.json').read_text())['Version']
     with tempfile.TemporaryDirectory(prefix='arielgram-sign-', dir=ipa.parent) as temporary:
         folder = Path(temporary)
         subprocess.run(['bsdtar', '-xf', str(ipa.resolve()), '-C', str(folder)], check=True)
@@ -31,6 +35,14 @@ def fix(ipa, configuration, ldid, refresh_resources=False):
                     else:
                         shutil.copy2(source, destination)
             permissions = (configuration.parent / product['entitlementsPath']).resolve()
+            executable = bundle / info['CFBundleExecutable']
+            original = executable.read_bytes()
+            previous_info = plistlib.dumps(info)
+            normalized = normalize_widget(info, original, sdk_version)
+            if normalized != original:
+                executable.write_bytes(normalized)
+            if plistlib.dumps(info) != previous_info:
+                (bundle / 'Info.plist').write_bytes(plistlib.dumps(info))
             subprocess.run([ldid, '-S' + str(permissions), str(bundle / info['CFBundleExecutable'])], check=True)
         # With no new entitlement file, -M keeps each binary's corrected values.
         # Deep bundle signing then regenerates the nested and host resource seals.
@@ -62,10 +74,11 @@ def main():
     parser.add_argument('--configuration', type=Path, required=True)
     parser.add_argument('--ldid', default=shutil.which('ldid'))
     parser.add_argument('--refresh-resources', action='store_true', help='Copy current xtool resources before regenerating signatures')
+    parser.add_argument('--sdk', type=Path, help='iPhoneOS SDK directory; defaults to the xtool Darwin SDK')
     args = parser.parse_args()
     if not args.ldid:
         raise SystemExit('Install ProcursusTeam/ldid (requires libplist and OpenSSL) or pass --ldid /path/to/ldid')
-    fix(args.ipa.resolve(), args.configuration.resolve(), args.ldid, args.refresh_resources)
+    fix(args.ipa.resolve(), args.configuration.resolve(), args.ldid, args.refresh_resources, args.sdk)
 
 
 if __name__ == '__main__':

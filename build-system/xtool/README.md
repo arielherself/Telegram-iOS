@@ -103,3 +103,15 @@ xtool 1.20.1's Linux signer passes the root entitlements to all extensions.
 `ldid -S -M` to regenerate the bundle resource seals while preserving those values.
 This is ad hoc signing; it does not supply a developer certificate or provisioning
 profile. The driver performs this step before validating the actual IPA.
+
+WidgetKit needs iOS 14 or later. `extensions.py` corrects the Widget executable's
+minimum and linked SDK version, using `SDKSettings.json` from the extracted SDK,
+and writes matching iPhoneOS metadata into its Info.plist before signing. It
+preserves xtool's `_NSExtensionMain` entry and the existing Mach-O flags. This
+metadata-only correction was installed successfully on the connected iOS 27 device.
+
+Self-signing can remove iCloud capabilities even when the build requested them.
+BuildConfig checks the executable's current signed entitlements before enabling
+CloudKit or the iCloud key-value store. Local login-token storage remains available
+without those capabilities; this avoids the observed startup trap in
+`CKContainer.default()` on a free-account signature.

@@ -1,4 +1,26 @@
 #import <BuildConfig/BuildConfig.h>
+#import <BuildConfig/SignedEntitlements.h>
+
+static NSDictionary *signedApplicationEntitlements(void) {
+    static NSDictionary *entitlements;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSData *executable = [NSData dataWithContentsOfFile:NSBundle.mainBundle.executablePath options:NSDataReadingMappedIfSafe error:nil];
+        size_t xmlLength = 0;
+        const unsigned char *xml = BCSignedEntitlements(executable.bytes, executable.length, &xmlLength);
+        if (xml != NULL) {
+            NSData *data = [NSData dataWithBytes:xml length:xmlLength];
+            id value = [NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable format:nil error:nil];
+            if ([value isKindOfClass:NSDictionary.class]) {
+                entitlements = value;
+            }
+        }
+        if (entitlements == nil) {
+            entitlements = @{};
+        }
+    });
+    return entitlements;
+}
 
 static NSString *telegramApplicationSecretKey = @"telegramApplicationSecretKey_v3";
 API_AVAILABLE(ios(10))
@@ -193,7 +215,16 @@ API_AVAILABLE(ios(10))
 }
 
 - (bool)isICloudEnabled {
-    return APP_CONFIG_IS_ICLOUD_ENABLED;
+    NSDictionary *entitlements = signedApplicationEntitlements();
+    NSArray *services = entitlements[@"com.apple.developer.icloud-services"];
+    NSArray *containers = entitlements[@"com.apple.developer.icloud-container-identifiers"];
+    return APP_CONFIG_IS_ICLOUD_ENABLED && [services isKindOfClass:NSArray.class]
+        && [services containsObject:@"CloudKit"] && [containers isKindOfClass:NSArray.class] && containers.count != 0;
+}
+
++ (bool)isICloudKeyValueStoreEnabled {
+    id identifier = signedApplicationEntitlements()[@"com.apple.developer.ubiquity-kvstore-identifier"];
+    return APP_CONFIG_IS_ICLOUD_ENABLED && [identifier isKindOfClass:NSString.class] && [identifier length] != 0;
 }
 
 - (bool)isSiriEnabled {
