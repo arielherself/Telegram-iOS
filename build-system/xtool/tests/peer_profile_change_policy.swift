@@ -35,6 +35,12 @@ do {
     expect(tx.messages.count == 2, "simultaneous changes produce two records")
     expect(tx.messages.values.allSatisfy { $0.flags.rawValue == 0 }, "no incoming, unsent, or top-index flags")
     expect(tx.messages.values.allSatisfy { $0.id.namespace == 1 }, "observations stay in local namespace")
+    expect(tx.messages.values.allSatisfy { $0.text.isEmpty }, "profile service records do not also carry an outgoing text bubble")
+    expect(tx.messages.values.allSatisfy { message in
+        guard let action = message.media.first as? TelegramMediaAction,
+              case let .customText(text, _, _) = action.action else { return false }
+        return !text.isEmpty
+    }, "service action retains the fallback prompt without a message caption")
     let name = changes(tx).first { $0.kind == .name }!
     let avatar = changes(tx).first { $0.kind == .avatar }!
     expect(name.previousName == "Alice" && name.updatedName == "Bob", "both names are captured")

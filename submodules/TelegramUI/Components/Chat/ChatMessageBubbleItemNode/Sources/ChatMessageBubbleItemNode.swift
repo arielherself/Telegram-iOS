@@ -226,6 +226,11 @@ private func contentNodeMessagesAndClassesForItem(_ item: ChatMessageItem) -> ([
                 }
             } else if let action = media as? TelegramMediaAction {
                 isAction = true
+                // Older local profile observations also stored the prompt as
+                // message text. Render those records only as a service action.
+                if message.attributes.contains(where: { $0 is ArielgramPeerProfileChangeAttribute }) {
+                    skipText = true
+                }
                 if case .phoneCall = action.action {
                     result.append((message, ChatMessageCallBubbleContentNode.self, itemAttributes, BubbleItemAttributes(isAttachment: false, neighborType: .text, neighborSpacing: .default)))
                 } else if case .conferenceCall = action.action {

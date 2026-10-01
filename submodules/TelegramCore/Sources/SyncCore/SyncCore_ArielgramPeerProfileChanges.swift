@@ -227,7 +227,7 @@ func arielgramRecordPeerProfileChange(transaction: Transaction, previous: Peer, 
                 continue
             }
             let text = change.text(languageCode: "en")
-            let message = StoreMessage(peerId: destination, namespace: Namespaces.Message.Local, customStableId: nil, globallyUniqueId: nil, groupingKey: nil, threadId: nil, timestamp: timestamp, flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: nil, text: text, attributes: [change], media: [TelegramMediaAction(action: .customText(text: text, entities: [], additionalAttributes: nil))])
+            let message = StoreMessage(peerId: destination, namespace: Namespaces.Message.Local, customStableId: nil, globallyUniqueId: nil, groupingKey: nil, threadId: nil, timestamp: timestamp, flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: nil, text: "", attributes: [change], media: [TelegramMediaAction(action: .customText(text: text, entities: [], additionalAttributes: nil))])
             let _ = transaction.addMessages([message], location: .Random)
         }
     }
