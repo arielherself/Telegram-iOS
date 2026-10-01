@@ -1084,7 +1084,11 @@ public func arielgramAppBadgeImage(style: String = "") -> UIImage? {
     case "SparklingAppBadge": colors = (0x8057d9, 0xcd79c5)
     default: colors = (0xf54824, 0xff733b)
     }
-    return generateImage(CGSize(width: 93.0, height: 22.0), rotatedContext: { size, context in
+    // UIKit text drawing needs a current image context. The low-level bitmap
+    // helpers only supply a CGContext and do not make it current for UIKit.
+    let size = CGSize(width: 93.0, height: 22.0)
+    return UIGraphicsImageRenderer(size: size).image { rendererContext in
+        let context = rendererContext.cgContext
         let rect = CGRect(origin: .zero, size: size)
         context.addPath(UIBezierPath(roundedRect: rect, cornerRadius: 11.0).cgPath)
         context.clip()
@@ -1104,5 +1108,5 @@ public func arielgramAppBadgeImage(style: String = "") -> UIImage? {
         context.fillPath()
         let text = NSAttributedString(string: "ARIELGRAM", attributes: [.font: UIFont.systemFont(ofSize: 10.5, weight: .semibold), .foregroundColor: UIColor.white, .kern: 0.2])
         text.draw(at: CGPoint(x: 22.0, y: floor((size.height - text.size().height) / 2.0)))
-    })
+    }.withRenderingMode(.alwaysOriginal)
 }
