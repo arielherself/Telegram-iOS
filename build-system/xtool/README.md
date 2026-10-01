@@ -115,3 +115,8 @@ BuildConfig checks the executable's current signed entitlements before enabling
 CloudKit or the iCloud key-value store. Local login-token storage remains available
 without those capabilities; this avoids the observed startup trap in
 `CKContainer.default()` on a free-account signature.
+
+Siri authorization also requires the current signature to grant
+`com.apple.developer.siri`. BuildConfig checks that permission before querying or
+requesting authorization: iOS throws an exception for either INPreferences call
+when a self-signing profile omits Siri, including after login.

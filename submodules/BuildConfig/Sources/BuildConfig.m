@@ -228,7 +228,10 @@ API_AVAILABLE(ios(10))
 }
 
 - (bool)isSiriEnabled {
-    return APP_CONFIG_IS_SIRI_ENABLED;
+    // Sideloading can remove Siri from the signature even when the build
+    // configuration enables it. INPreferences throws without this permission.
+    id permission = signedApplicationEntitlements()[@"com.apple.developer.siri"];
+    return APP_CONFIG_IS_SIRI_ENABLED && [permission isKindOfClass:NSNumber.class] && [permission boolValue];
 }
 
 + (NSString * _Nullable)bundleSeedId {
