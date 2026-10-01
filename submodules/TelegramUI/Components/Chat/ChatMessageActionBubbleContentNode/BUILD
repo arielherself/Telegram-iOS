@@ -21,6 +21,7 @@ swift_library(
         "//submodules/LocalizedPeerData",
         "//submodules/UrlEscaping",
         "//submodules/PhotoResources",
+        "//submodules/TinyThumbnail:TinyThumbnail",
         "//submodules/TelegramStringFormatting",
         "//submodules/MediaPlayer:UniversalMediaPlayer",
         "//submodules/TelegramUniversalVideoContent",

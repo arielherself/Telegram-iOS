@@ -44,6 +44,22 @@ than using Telegram's restricted forward operation. Telegram still controls
 whether resources can be downloaded and whether the destination accepts a send.
 Screenshot badges, including the badge picker, display **ARIELGRAM**.
 
+## Profile changes in chats
+
+Ordinary private chats, groups, and channels show locally observed name and
+photo changes as service messages. Name prompts retain both names; photo prompts
+show the previous and updated avatars side by side with an arrow. The first
+usable profile is a baseline, and ordinary refreshes of the same photo are ignored.
+Group members are associated using existing message authors, cached group rosters,
+and member lists the client normally receives, without extra profile polling.
+Matching official group/channel service messages receive the observation instead
+of adding a duplicate local prompt.
+
+These observations live in the existing message database and are never sent to
+Telegram or counted as unread. Avatar resources use normal cache cleanup; old
+photos are displayed from existing cache or embedded thumbnails, with a placeholder
+when unavailable. Changes the client never received cannot be reconstructed.
+
 ## Local Linux IPA build
 
 See [the xtool build guide](build-system/xtool/README.md) for dependencies and resource limitations.

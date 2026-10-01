@@ -11,6 +11,7 @@ import TextFormat
 import LocalizedPeerData
 import UrlEscaping
 import PhotoResources
+import TinyThumbnail
 import TelegramStringFormatting
 import UniversalMediaPlayer
 import TelegramUniversalVideoContent
@@ -24,6 +25,41 @@ import Markdown
 import ComponentFlow
 import ReactionSelectionNode
 import MultilineTextComponent
+
+private func arielgramProfileAvatarSignal(item: ChatMessageBubbleContentItem, image: TelegramMediaImage?, reference: PeerReference?, name: String, size: CGSize, fetch: Bool) -> Signal<UIImage?, NoError> {
+    let color = serviceMessageColorComponents(theme: item.presentationData.theme.theme, wallpaper: item.presentationData.theme.wallpaper).primaryText
+    let placeholder = UIGraphicsImageRenderer(size: size).image { renderer in
+        color.withAlphaComponent(0.16).setFill()
+        renderer.cgContext.fillEllipse(in: CGRect(origin: .zero, size: size))
+        let text = NSAttributedString(string: String(name.prefix(1)).uppercased(), attributes: [.font: Font.semibold(size.width * 0.4), .foregroundColor: color])
+        let textSize = text.size()
+        text.draw(at: CGPoint(x: (size.width - textSize.width) * 0.5, y: (size.height - textSize.height) * 0.5))
+    }
+    guard let image else { return .single(placeholder) }
+    let thumbnail = image.immediateThumbnailData.flatMap(decodeTinyThumbnail).flatMap { UIImage(data: $0) } ?? placeholder
+    let representations = image.representations.sorted { $0.dimensions.width > $1.dimensions.width }
+    guard !representations.isEmpty else { return .single(thumbnail) }
+    let mediaBox = item.context.account.postbox.mediaBox
+    let cached = combineLatest(representations.map { representation in
+        return mediaBox.resourceData(representation.resource, attemptSynchronously: true)
+        |> map { data -> UIImage? in
+            return data.complete ? UIImage(contentsOfFile: data.path) : nil
+        }
+    })
+    |> map { images -> UIImage? in
+        return images.compactMap { $0 }.first ?? thumbnail
+    }
+    // Historical photos are shown only from existing cache/embedded thumbnails.
+    // Rendering the new photo uses the ordinary avatar resource fetch, without
+    // querying a profile or asking for a history of profile photos.
+    guard fetch, let reference, let representation = image.representations.first else { return cached }
+    return Signal { subscriber in
+        let disposable = DisposableSet()
+        disposable.add(cached.start(next: { subscriber.putNext($0) }))
+        disposable.add(fetchedMediaResource(mediaBox: mediaBox, userLocation: .peer(item.message.id.peerId), userContentType: .avatar, reference: .avatar(peer: reference, resource: representation.resource), statsCategory: .generic).start())
+        return disposable
+    }
+}
 
 private func attributedServiceMessageString(theme: ChatPresentationThemeData, strings: PresentationStrings, nameDisplayOrder: PresentationPersonNameOrder, dateTimeFormat: PresentationDateTimeFormat, message: EngineRawMessage, messageCount: Int? = nil, accountPeerId: EnginePeer.Id, forForumOverview: Bool) -> NSAttributedString? {
     return universalServiceMessageString(presentationData: (theme.theme, theme.wallpaper), strings: strings, nameDisplayOrder: nameDisplayOrder, dateTimeFormat: dateTimeFormat, message: EngineMessage(message), messageCount: messageCount, accountPeerId: accountPeerId, forChatList: false, forForumOverview: forForumOverview)
@@ -51,6 +87,7 @@ public class ChatMessageActionBubbleContentNode: ChatMessageBubbleContentNode {
     private var videoStartTimestamp: Double?
     private let fetchDisposable = MetaDisposable()
     
+    private var profileAvatarNodes: (previous: ImageNode, updated: ImageNode, arrow: ASImageNode)?
     private var leadingIconView: UIImageView?
 
     private var cachedMaskBackgroundImage: (CGPoint, UIImage, [CGRect])?
@@ -237,6 +274,12 @@ public class ChatMessageActionBubbleContentNode: ChatMessageBubbleContentNode {
                 }
                 
                 let imageSize = CGSize(width: 212.0, height: 212.0)
+                let profileChange = item.message.attributes.compactMap { $0 as? ArielgramPeerProfileChangeAttribute }.first
+                let avatarChange = profileChange?.kind == .avatar ? profileChange : nil
+                if avatarChange != nil { image = nil }
+                let avatarDiameter = min(96.0, floor((constrainedSize.width - 72.0) * 0.5))
+                let avatarRowSize = CGSize(width: avatarDiameter * 2.0 + 40.0, height: avatarDiameter)
+
                 
                 var updatedAttributedString = attributedString
                 if leadingIcon != nil, let attributedString {
@@ -470,6 +513,11 @@ public class ChatMessageActionBubbleContentNode: ChatMessageBubbleContentNode {
                     backgroundSize.height += imageSize.height + 10.0
                 }
                 
+                if avatarChange != nil {
+                    backgroundSize.width = max(backgroundSize.width, avatarRowSize.width + 16.0)
+                    backgroundSize.height += avatarRowSize.height + 16.0
+                }
+
                 let titleSpacing: CGFloat = 14.0
                 
                 var contentInsets = UIEdgeInsets()
@@ -623,10 +671,44 @@ public class ChatMessageActionBubbleContentNode: ChatMessageBubbleContentNode {
                                     titleNode.bounds = CGRect(origin: CGPoint(), size: titleFrame.size)
                                 }
                             } else {
-                                labelFrame = CGRect(origin: CGPoint(x: floorToScreenPixels((boundingWidth - labelLayout.size.width) / 2.0) - 1.0, y: image != nil ? 2.0 : floorToScreenPixels((backgroundSize.height - labelLayout.size.height) / 2.0) - 1.0), size: labelLayout.size)
+                                labelFrame = CGRect(origin: CGPoint(x: floorToScreenPixels((boundingWidth - labelLayout.size.width) / 2.0) - 1.0, y: image != nil || avatarChange != nil ? 2.0 : floorToScreenPixels((backgroundSize.height - labelLayout.size.height) / 2.0) - 1.0), size: labelLayout.size)
                                 contentFrame = labelFrame
                             }
                             
+                            if let avatarChange {
+                                let nodes: (previous: ImageNode, updated: ImageNode, arrow: ASImageNode)
+                                if let current = strongSelf.profileAvatarNodes {
+                                    nodes = current
+                                } else {
+                                    nodes = (ImageNode(), ImageNode(), ASImageNode())
+                                    strongSelf.profileAvatarNodes = nodes
+                                    for node in [nodes.previous, nodes.updated, nodes.arrow] {
+                                        node.isUserInteractionEnabled = false
+                                        node.displaysAsynchronously = false
+                                        strongSelf.addSubnode(node)
+                                    }
+                                    nodes.previous.clipsToBounds = true
+                                    nodes.updated.clipsToBounds = true
+                                    nodes.previous.contentMode = .scaleAspectFill
+                                    nodes.updated.contentMode = .scaleAspectFill
+                                }
+                                let avatarSize = CGSize(width: avatarDiameter, height: avatarDiameter)
+                                let origin = CGPoint(x: floorToScreenPixels((boundingWidth - avatarRowSize.width) * 0.5), y: labelFrame.maxY + 12.0)
+                                nodes.previous.frame = CGRect(origin: origin, size: avatarSize)
+                                nodes.updated.frame = CGRect(origin: CGPoint(x: origin.x + avatarDiameter + 40.0, y: origin.y), size: avatarSize)
+                                nodes.previous.cornerRadius = avatarDiameter * 0.5
+                                nodes.updated.cornerRadius = avatarDiameter * 0.5
+                                nodes.previous.setSignal(arielgramProfileAvatarSignal(item: item, image: avatarChange.previousImage, reference: nil, name: avatarChange.previousName, size: avatarSize, fetch: false))
+                                nodes.updated.setSignal(arielgramProfileAvatarSignal(item: item, image: avatarChange.updatedImage, reference: avatarChange.peerReference, name: avatarChange.updatedName, size: avatarSize, fetch: true))
+                                let arrowColor = serviceMessageColorComponents(theme: item.presentationData.theme.theme, wallpaper: item.presentationData.theme.wallpaper).primaryText
+                                nodes.arrow.image = UIImage(systemName: "arrow.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22.0, weight: .medium))?.withTintColor(arrowColor, renderingMode: .alwaysOriginal)
+                                nodes.arrow.contentMode = .center
+                                nodes.arrow.frame = CGRect(x: origin.x + avatarDiameter + 4.0, y: origin.y + floor((avatarDiameter - 32.0) * 0.5), width: 32.0, height: 32.0)
+                            } else if let nodes = strongSelf.profileAvatarNodes {
+                                for node in [nodes.previous, nodes.updated, nodes.arrow] { node.removeFromSupernode() }
+                                strongSelf.profileAvatarNodes = nil
+                            }
+
                             if hasBuyStarsButton, let (buyStarsTitleLayout, buyStarsTitleApply) = buyStarsTitleLayoutAndApply, let buyStarsButtonSize {
                                 let buyStarsButton: HighlightTrackingButton
                                 if let current = strongSelf.buyStarsButton {

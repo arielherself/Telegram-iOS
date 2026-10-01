@@ -350,7 +350,7 @@ public final class Transaction {
     
     public func updatePeersInternal(_ peers: [Peer], update: (Peer?, Peer) -> Peer?) {
         assert(!self.disposed)
-        self.postbox?.updatePeers(peers, update: update)
+        self.postbox?.updatePeers(transaction: self, peers, update: update)
     }
     
     public func getPeerChatListInclusion(_ id: PeerId) -> PeerChatListInclusion {
@@ -1096,6 +1096,21 @@ public final class Transaction {
     public func scanMessages(peerId: PeerId, threadId: Int64, namespace: MessageId.Namespace, tag: MessageTags, _ f: (Message) -> Bool) {
         assert(!self.disposed)
         self.postbox?.scanMessages(peerId: peerId, threadId: threadId, namespace: namespace, tag: tag, f)
+    }
+
+    /// Read only local author metadata, newest first, without rendering messages
+    /// or loading network history. Used to identify previously observed members.
+    public func hasMessageWithAuthor(peerId: PeerId, namespace: MessageId.Namespace, authorId: PeerId, afterTimestamp: Int32? = nil) -> Bool {
+        assert(!self.disposed)
+        guard let postbox = self.postbox else { return false }
+        var index = MessageIndex.upperBound(peerId: peerId, namespace: namespace)
+        let lowerBound = MessageIndex.lowerBound(peerId: peerId, namespace: namespace)
+        while true {
+            let messages = postbox.messageHistoryTable.fetch(peerId: peerId, namespace: namespace, tag: nil, customTag: nil, threadId: nil, from: index, includeFrom: false, to: lowerBound, ignoreMessagesInTimestampRange: nil, ignoreMessageIds: Set(), limit: 100)
+            if messages.contains(where: { $0.authorId == authorId && (afterTimestamp == nil || $0.timestamp > afterTimestamp!) }) { return true }
+            guard let last = messages.last else { return false }
+            index = last.index
+        }
     }
 
     public func scanTopMessages(peerId: PeerId, namespace: MessageId.Namespace, limit: Int, _ f: (Message) -> Bool) {
@@ -2171,6 +2186,7 @@ final class PostboxImpl {
     
     fileprivate func addMessages(transaction: Transaction, messages: [StoreMessage], location: AddMessagesLocation) -> [Int64: MessageId] {
         let messages = messages.map { updated -> StoreMessage in
+            let updated = self.seedConfiguration.transformAddedMessage?(transaction, updated) ?? updated
             if let transform = self.seedConfiguration.transformUpdatedMessage,
                case let .Id(id) = updated.id,
                let index = self.messageHistoryIndexTable.getIndex(id),
@@ -2817,12 +2833,15 @@ final class PostboxImpl {
         return self.globallyUniqueMessageIdsTable.get(peerId: peerId, globallyUniqueId: id)
     }
     
-    fileprivate func updatePeers(_ peers: [Peer], update: (Peer?, Peer) -> Peer?) {
+    fileprivate func updatePeers(transaction: Transaction, _ peers: [Peer], update: (Peer?, Peer) -> Peer?) {
         for peer in peers {
             let currentPeer = self.peerTable.get(peer.id)
             if let updatedPeer = update(currentPeer, peer) {
                 self.peerTable.set(updatedPeer)
                 self.currentUpdatedPeers[updatedPeer.id] = updatedPeer
+                if let currentPeer = currentPeer {
+                    self.seedConfiguration.observeUpdatedPeer?(transaction, currentPeer, updatedPeer)
+                }
                 var previousIndexNameWasEmpty = true
                 
                 if let currentPeer = currentPeer {

@@ -138,6 +138,7 @@ private var declaredEncodables: Void = {
     declareEncodable(SourceReferenceMessageAttribute.self, f: { SourceReferenceMessageAttribute(decoder: $0) })
     declareEncodable(SourceAuthorInfoMessageAttribute.self, f: { SourceAuthorInfoMessageAttribute(decoder: $0) })
     declareEncodable(EditedMessageAttribute.self, f: { EditedMessageAttribute(decoder: $0) })
+    declareEncodable(ArielgramPeerProfileChangeAttribute.self, f: { ArielgramPeerProfileChangeAttribute(decoder: $0) })
     declareEncodable(ArielgramMessageHistoryAttribute.self, f: { ArielgramMessageHistoryAttribute(decoder: $0) })
     declareEncodable(ArielgramMessageVersion.self, f: { ArielgramMessageVersion(decoder: $0) })
     declareEncodable(ArielgramReuploadCopiedMediaAttribute.self, f: { ArielgramReuploadCopiedMediaAttribute(decoder: $0) })

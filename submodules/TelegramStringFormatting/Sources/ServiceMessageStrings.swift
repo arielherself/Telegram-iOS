@@ -125,6 +125,10 @@ public func universalServiceMessageString(presentationData: (PresentationTheme, 
         primaryTextColor = .black
     }
     
+    if let change = message.attributes.compactMap({ $0 as? ArielgramPeerProfileChangeAttribute }).first {
+        return NSAttributedString(string: change.text(languageCode: strings.baseLanguageCode), font: titleFont, textColor: primaryTextColor)
+    }
+
     let bodyAttributes = MarkdownAttributeSet(font: titleFont, textColor: primaryTextColor, additionalAttributes: [:])
     let boldAttributes = MarkdownAttributeSet(font: titleBoldFont, textColor: primaryTextColor, additionalAttributes: [:])
     

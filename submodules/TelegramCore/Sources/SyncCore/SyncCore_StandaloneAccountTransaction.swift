@@ -266,7 +266,9 @@ public let telegramPostboxSeedConfiguration: SeedConfiguration = {
             return result
         },
         displaySavedMessagesAsTopicListPreferencesKey: PreferencesKeys.displaySavedChatsAsTopics(),
-        transformUpdatedMessage: arielgramPreserveMessageHistory
+        transformUpdatedMessage: arielgramPreserveMessageHistory,
+        observeUpdatedPeer: arielgramRecordPeerProfileChange,
+        transformAddedMessage: arielgramProcessProfileServiceMessage
     )
 }()
 

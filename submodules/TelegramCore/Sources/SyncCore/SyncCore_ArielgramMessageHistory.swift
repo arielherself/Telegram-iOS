@@ -112,7 +112,7 @@ public extension Message {
 
     var arielgramMediaForStorage: [Media] {
         var seen = Set<MediaId>()
-        return (self.effectiveMedia + (self.arielgramHistory?.mediaForStorage ?? [])).filter { media in
+        return (self.effectiveMedia + self.attributes.compactMap { $0 as? MessageMediaHistoryAttribute }.flatMap { $0.mediaForStorage }).filter { media in
             guard let id = media.id else { return true }
             return seen.insert(id).inserted
         }

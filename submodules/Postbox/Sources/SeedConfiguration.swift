@@ -81,6 +81,8 @@ public final class SeedConfiguration {
     public let automaticThreadIndexInfo: (PeerId, Int64) -> StoredMessageHistoryThreadInfo?
     public let customTagsFromAttributes: ([MessageAttribute]) -> [MemoryBuffer]
     public let displaySavedMessagesAsTopicListPreferencesKey: ValueBoxKey
+    public let transformAddedMessage: ((Transaction, StoreMessage) -> StoreMessage)?
+    public let observeUpdatedPeer: ((Transaction, Peer, Peer) -> Void)?
     public let transformUpdatedMessage: ((Message, StoreMessage) -> StoreMessage)?
     
     public init(
@@ -113,7 +115,9 @@ public final class SeedConfiguration {
         automaticThreadIndexInfo: @escaping (PeerId, Int64) -> StoredMessageHistoryThreadInfo?,
         customTagsFromAttributes: @escaping ([MessageAttribute]) -> [MemoryBuffer],
         displaySavedMessagesAsTopicListPreferencesKey: ValueBoxKey,
-        transformUpdatedMessage: ((Message, StoreMessage) -> StoreMessage)? = nil
+        transformUpdatedMessage: ((Message, StoreMessage) -> StoreMessage)? = nil,
+        observeUpdatedPeer: ((Transaction, Peer, Peer) -> Void)? = nil,
+        transformAddedMessage: ((Transaction, StoreMessage) -> StoreMessage)? = nil
     ) {
         self.globalMessageIdsPeerIdNamespaces = globalMessageIdsPeerIdNamespaces
         self.initializeChatListWithHole = initializeChatListWithHole
@@ -141,5 +145,7 @@ public final class SeedConfiguration {
         self.customTagsFromAttributes = customTagsFromAttributes
         self.displaySavedMessagesAsTopicListPreferencesKey = displaySavedMessagesAsTopicListPreferencesKey
         self.transformUpdatedMessage = transformUpdatedMessage
+        self.observeUpdatedPeer = observeUpdatedPeer
+        self.transformAddedMessage = transformAddedMessage
     }
 }

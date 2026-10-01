@@ -100,6 +100,7 @@ func _internal_channelMembers(postbox: Postbox, network: Network, accountPeerId:
                         case let .channelParticipants(channelParticipantsData):
                             let (participants, chats, users) = (channelParticipantsData.participants, channelParticipantsData.chats, channelParticipantsData.users)
                             let parsedPeers = AccumulatedPeers(transaction: transaction, chats: chats, users: users)
+                            arielgramObserveGroupParticipants(transaction: transaction, groupId: peerId, participants: CachedChannelParticipants(apiParticipants: participants).participants)
                             updatePeers(transaction: transaction, accountPeerId: accountPeerId, peers: parsedPeers)
                             var peers: [EnginePeer.Id: EnginePeer] = [:]
                             for id in parsedPeers.allIds {
