@@ -54,6 +54,7 @@ load(
     "telegram_bazel_path",
     "telegram_use_xcode_managed_codesigning",
     "telegram_bundle_id",
+    "telegram_app_specific_url_scheme",
     "telegram_aps_environment",
     "telegram_team_id",
     "telegram_enable_icloud",
@@ -428,33 +429,13 @@ plist_fragment(
             <string>{telegram_bundle_id}</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>telegram</string>
-            </array>
-        </dict>
-        <dict>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>CFBundleURLName</key>
-            <string>{telegram_bundle_id}.compatibility</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>tg</string>
-                <string>tonsite</string>
-            </array>
-        </dict>
-        <dict>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>CFBundleURLName</key>
-            <string>{telegram_bundle_id}.custom</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>sg</string>
+                <string>{telegram_app_specific_url_scheme}</string>
             </array>
         </dict>
     </array>
     """.format(
         telegram_bundle_id = telegram_bundle_id,
+        telegram_app_specific_url_scheme = telegram_app_specific_url_scheme,
     )
 )
 
@@ -560,6 +541,10 @@ app_groups_fragment = """
     <array>
         <string>group.{telegram_bundle_id}</string>
     </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
     <key>application-identifier</key>
     <string>{telegram_team_id}.{telegram_bundle_id}</string>
 """.format(
@@ -612,6 +597,126 @@ plist_fragment(
     ])
 )
 
+plist_fragment(
+    name = "ShareExtensionEntitlements",
+    extension = "entitlements",
+    template = """
+    <key>application-identifier</key>
+    <string>{telegram_team_id}.{telegram_bundle_id}.Share</string>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.{telegram_bundle_id}</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
+    """.format(
+        telegram_team_id = telegram_team_id,
+        telegram_bundle_id = telegram_bundle_id,
+    ),
+)
+
+plist_fragment(
+    name = "NotificationContentExtensionEntitlements",
+    extension = "entitlements",
+    template = """
+    <key>application-identifier</key>
+    <string>{telegram_team_id}.{telegram_bundle_id}.NotificationContent</string>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.{telegram_bundle_id}</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
+    """.format(
+        telegram_team_id = telegram_team_id,
+        telegram_bundle_id = telegram_bundle_id,
+    ),
+)
+
+plist_fragment(
+    name = "NotificationServiceExtensionv1Entitlements",
+    extension = "entitlements",
+    template = """
+    <key>application-identifier</key>
+    <string>{telegram_team_id}.{telegram_bundle_id}.NotificationService</string>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.{telegram_bundle_id}</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
+    """.format(
+        telegram_team_id = telegram_team_id,
+        telegram_bundle_id = telegram_bundle_id,
+    ),
+)
+
+plist_fragment(
+    name = "IntentsExtensionEntitlements",
+    extension = "entitlements",
+    template = """
+    <key>application-identifier</key>
+    <string>{telegram_team_id}.{telegram_bundle_id}.SiriIntents</string>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.{telegram_bundle_id}</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
+    """.format(
+        telegram_team_id = telegram_team_id,
+        telegram_bundle_id = telegram_bundle_id,
+    ),
+)
+
+plist_fragment(
+    name = "WidgetExtensionEntitlements",
+    extension = "entitlements",
+    template = """
+    <key>application-identifier</key>
+    <string>{telegram_team_id}.{telegram_bundle_id}.Widget</string>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.{telegram_bundle_id}</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
+    """.format(
+        telegram_team_id = telegram_team_id,
+        telegram_bundle_id = telegram_bundle_id,
+    ),
+)
+
+plist_fragment(
+    name = "BroadcastUploadExtensionEntitlements",
+    extension = "entitlements",
+    template = """
+    <key>application-identifier</key>
+    <string>{telegram_team_id}.{telegram_bundle_id}.BroadcastUpload</string>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.{telegram_bundle_id}</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    </array>
+    """.format(
+        telegram_team_id = telegram_team_id,
+        telegram_bundle_id = telegram_bundle_id,
+    ),
+)
+
 genrule(
     name = "VersionInfoPlist",
     srcs = ["//:versions.json"],
@@ -649,7 +754,7 @@ plist_fragment(
     template =
     """
     <key>CFBundleDisplayName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     """
 )
 
@@ -990,7 +1095,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.Share</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1047,6 +1152,7 @@ swift_library(
 
 ios_extension(
     name = "ShareExtension",
+    entitlements = ":ShareExtensionEntitlements.entitlements",
     bundle_id = "{telegram_bundle_id}.Share".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1082,7 +1188,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.NotificationContent</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1153,6 +1259,7 @@ swift_library(
 
 ios_extension(
     name = "NotificationContentExtension",
+    entitlements = ":NotificationContentExtensionEntitlements.entitlements",
     bundle_id = "{telegram_bundle_id}.NotificationContent".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1189,7 +1296,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.Widget</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1258,6 +1365,7 @@ genrule(
 
 ios_extension(
     name = "WidgetExtension",
+    entitlements = ":WidgetExtensionEntitlements.entitlements",
     bundle_id = "{telegram_bundle_id}.Widget".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1302,7 +1410,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.SiriIntents</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1395,6 +1503,7 @@ swift_library(
 
 ios_extension(
     name = "IntentsExtension",
+    entitlements = ":IntentsExtensionEntitlements.entitlements",
     bundle_id = "{telegram_bundle_id}.SiriIntents".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1435,9 +1544,9 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.SGActionRequestHandler</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundleDisplayName</key>
-    <string>Open in Swiftgram</string>
+    <string>Open in Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
 	<key>NSExtension</key>
@@ -1574,7 +1683,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.BroadcastUpload</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1631,6 +1740,7 @@ swift_library(
 
 ios_extension(
     name = "BroadcastUploadExtension",
+    entitlements = ":BroadcastUploadExtensionEntitlements.entitlements",
     bundle_id = "{telegram_bundle_id}.BroadcastUpload".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1668,7 +1778,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.NotificationService</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1692,6 +1802,7 @@ plist_fragment(
 
 ios_extension(
     name = "NotificationServiceExtension" + notificationServiceExtensionVersion,
+    entitlements = ":NotificationServiceExtensionv1Entitlements.entitlements",
     bundle_id = "{telegram_bundle_id}.NotificationService".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1737,11 +1848,11 @@ plist_fragment(
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Arielgram</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
@@ -1799,17 +1910,17 @@ plist_fragment(
     <key>NSCameraUsageDescription</key>
     <string>We need this so that you can take and share photos and videos.</string>
     <key>NSContactsUsageDescription</key>
-    <string>Swiftgram stores your contacts heavily encrypted in the Telegram cloud to let you connect with your friends across all your devices.</string>
+    <string>Arielgram stores your contacts heavily encrypted in the Telegram cloud to let you connect with your friends across all your devices.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>You can use Face ID to unlock the app.</string>
     <key>NSLocationAlwaysUsageDescription</key>
-    <string>When you send your location to your friends, Swiftgram needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
+    <string>When you send your location to your friends, Arielgram needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>When you send your location to your friends, Swiftgram needs access to show them a map.</string>
+    <string>When you send your location to your friends, Arielgram needs access to show them a map.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>We need this so that you can record and share voice messages and videos with sound.</string>
     <key>NSMotionUsageDescription</key>
-    <string>When you send your location to your friends, Swiftgram needs access to show them a map.</string>
+    <string>When you send your location to your friends, Arielgram needs access to show them a map.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>We need this so that you can share photos and videos from your photo library.</string>
     <key>NSPhotoLibraryUsageDescription</key>
@@ -1915,7 +2026,7 @@ xcode_provisioning_profile(
 )
 
 apple_prebuilt_watchos_application(
-    name = "SwiftgramWatchApp",
+    name = "ArielgramWatchApp",
     # Watch bundle id tracks the host config ("<host>.watchkitapp"). The rule passes it
     # to xcodebuild as PRODUCT_BUNDLE_IDENTIFIER (baked + signed); the watch Info.plist
     # derives WKCompanionAppBundleIdentifier from it via $(PRODUCT_BUNDLE_IDENTIFIER:base),
@@ -1928,7 +2039,7 @@ apple_prebuilt_watchos_application(
 )
 
 ios_application(
-    name = "Swiftgram",
+    name = "Arielgram",
     bundle_id = "{telegram_bundle_id}".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1982,7 +2093,7 @@ ios_application(
     # --//Telegram:embedWatchApp is set (Make.py sets it for device configs when
     # --embedWatchApp is passed). Off by default, so simulator/dev builds are unaffected.
     watch_application = select({
-        ":embedWatchAppSetting": ":SwiftgramWatchApp",
+        ":embedWatchAppSetting": ":ArielgramWatchApp",
         "//conditions:default": None,
     }),
     deps = [
@@ -1996,10 +2107,10 @@ xcodeproj(
     name = "Telegram_xcodeproj",
     bazel_path = telegram_bazel_path,
     bazel_env = {"LANG": "en_US.UTF-8","PATH": "/opt/homebrew/bin:/usr/local/bin:/bin:/usr/bin"}, # MARK: Swiftgram, otherwise Bazel through xcode does not see ccache
-    project_name = "Swiftgram",
+    project_name = "Arielgram",
     tags = ["manual"],
     top_level_targets = [
-        top_level_target(":Swiftgram", target_environments = ["device", "simulator"]),
+        top_level_target(":Arielgram", target_environments = ["device", "simulator"]),
         ":iOSAppUITestSuite",
     ],
     xcode_configurations = {
@@ -2041,7 +2152,7 @@ ios_ui_test_suite(
         ":iPhone-17__26.2",
     ],
     tags = ["manual"],
-    test_host = "//Telegram:Swiftgram", # MARK: Swiftgram
+    test_host = "//Telegram:Arielgram", # MARK: Swiftgram
     visibility = ["@rules_xcodeproj//xcodeproj:generated"],
     deps = [":iOSAppUITestSuite.library"],
 )

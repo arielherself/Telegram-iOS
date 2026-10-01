@@ -23,7 +23,7 @@ class Resources:
     def __init__(self, graph, output):
         self.graph = graph
         self.output = output.resolve()
-        self.exporter = Exporter(graph, output, "//Telegram:Swiftgram")
+        self.exporter = Exporter(graph, output, "//Telegram:Arielgram")
         self.generator = Generator(graph, output, 4)
         self.inputs = set()
         self.tools = set()
@@ -134,7 +134,7 @@ class Resources:
             # This is a generated output owned by this adapter.
             shutil.rmtree(resources)
         resources.mkdir()
-        icons = self.graph.attrs("//Telegram:Swiftgram").get("app_icons", [])
+        icons = self.graph.attrs("//Telegram:Arielgram").get("app_icons", [])
         icon_name = None
         if icons:
             candidates = [p for x in icons for p in self.files(canonical(x, "//Telegram"))]

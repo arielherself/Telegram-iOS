@@ -2,9 +2,9 @@ import Foundation
 import BuildConfig
 
 public struct SGConfig: Codable {
-    public var apiUrl: String = "https://api.swiftgram.app"
-    public var webappUrl: String = "https://my.swiftgram.app"
-    public var botUsername: String = "SwiftgramBot"
+    public var apiUrl: String = "https://api.arielgram.invalid"
+    public var webappUrl: String = "https://my.arielgram.invalid"
+    public var botUsername: String = ""
     public var publicKey: String?
     public var iaps: [String] = []
 }

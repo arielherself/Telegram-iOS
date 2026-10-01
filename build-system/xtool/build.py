@@ -62,6 +62,8 @@ def main():
         zip_tool.chmod(0o755)
         environment['PATH'] = str(pack_tools) + os.pathsep + environment['PATH']
     subprocess.run(['xtool', 'dev', 'build', '--ipa', '--configuration', 'release'], cwd=ROOT / 'build/xtool', env=environment, check=True)
+    run('fix_entitlements.py', ROOT / 'build/xtool/xtool/Arielgram.ipa', '--configuration', ROOT / 'build/xtool/xtool.yml')
+    run('validate_identity.py', ROOT / 'build/xtool/xtool/Arielgram.ipa', '--report', ROOT / 'build/xtool/identity-validation.json')
 
 if __name__ == '__main__':
     main()

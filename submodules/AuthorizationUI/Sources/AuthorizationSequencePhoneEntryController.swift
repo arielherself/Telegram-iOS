@@ -204,6 +204,9 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
     }
     
     private func loadAndPresentPasskey(force: Bool) {
+        guard Bundle.main.object(forInfoDictionaryKey: "ArielgramPasskeysEnabled") as? Bool == true else {
+            return
+        }
         if #available(iOS 16.0, *) {
             Task { @MainActor [weak self] in
                 guard let self, let account = self.account else {
@@ -230,10 +233,10 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
                 guard let pkDict = params["publicKey"] as? [String: Any] else {
                     return
                 }
-                /* MARK: Swiftgram
+                // Use the relying party supplied by the authentication service.
                 guard let relyingPartyIdentifier = pkDict["rpId"] as? String else {
                     return
-                }*/
+                }
                 guard let challengeBase64 = pkDict["challenge"] as? String else {
                     return
                 }
@@ -241,7 +244,7 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
                     return
                 }
                 
-                let platformProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: "swiftgram.app")
+                let platformProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: relyingPartyIdentifier)
                 let platformKeyRequest = platformProvider.createCredentialAssertionRequest(challenge: challengeData)
                 let authController = ASAuthorizationController(authorizationRequests: [platformKeyRequest])
                 authController.delegate = self

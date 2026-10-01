@@ -40,9 +40,9 @@ public class SGLocalizationManager {
         
         if let localizedString = findLocalizedString(forKey: key, inLocale: sanitizedLocale) {
             if args.isEmpty {
-                return String(format: localizedString)
+                return String(format: localizedString.replacingOccurrences(of: "Swiftgram", with: "Arielgram"))
             } else {
-                return String(format: localizedString, arguments: args)
+                return String(format: localizedString.replacingOccurrences(of: "Swiftgram", with: "Arielgram"), arguments: args)
             }
         }
         
@@ -119,7 +119,7 @@ public class SGLocalizationManager {
     }
 
     private func getStringsUrl(for locale: String) -> String {
-        return "https://raw.githubusercontent.com/Swiftgram/Telegram-iOS/master/Swiftgram/SGStrings/Strings/\(locale).lproj/SGLocalizable.strings"
+        return "https://raw.githubusercontent.com/arielherself/Telegram-iOS/master/Swiftgram/SGStrings/Strings/\(locale).lproj/SGLocalizable.strings"
     }
 
 }

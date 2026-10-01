@@ -1,15 +1,49 @@
-# Swiftgram
+# Arielgram
 
-Supercharged Telegram fork for iOS
+An unofficial Telegram client for iOS, built locally with [xtool](https://github.com/xtool-org/xtool).
 
-[<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="50">](https://apps.apple.com/app/apple-store/id6471879502?pt=126511626&ct=gh&mt=8)
+- App name: **Arielgram**
+- Bundle ID: `xyz.arielherself.Arielgram`
+- App Group: `group.xyz.arielherself.Arielgram`
+- URL scheme: `arielgram://`
+- Repository: https://github.com/arielherself/Telegram-iOS
 
-- Download: [App Store](https://apps.apple.com/app/apple-store/id6471879502?pt=126511626&ct=gh&mt=8)
-- Telegram channel: https://t.me/swiftgram
-- Telegram chat: https://t.me/swiftgramchat
-- TestFlight beta, local chats, translations and other [@SwiftgramLinks](https://t.me/s/SwiftgramLinks)
+The app, its six iOS extensions, session backups, Keychain access group, and iCloud
+container use this independent identity. Extensions use the host Bundle ID with
+`.Share`, `.NotificationContent`, `.NotificationService`, `.SiriIntents`, `.Widget`,
+and `.BroadcastUpload` suffixes. Re-sign the app and **all** extensions with profiles
+for these identifiers; keep the App Group consistent across them. Do not assign an
+existing client's Keychain access group or App Group during re-signing.
 
-Swiftgram's compilation steps are the same as for the official app. Below you'll find a complete compilation guide based on the official app.
+The app registers only `arielgram://`, so installing it does not take over another
+client's URL schemes. Telegram links are still parsed inside the app.
+
+## Local Linux IPA build
+
+See [the xtool build guide](build-system/xtool/README.md) for dependencies and resource limitations.
+After installing the Darwin Swift SDK extracted from Xcode:
+
+```bash
+python3 build-system/xtool/build.py --bazel /path/to/bazel
+```
+
+The unsigned/ad hoc IPA is generated at `build/xtool/xtool/Arielgram.ipa` for your own
+re-signing. Generated artifacts are excluded from Git. The app supports arm64 iOS
+13 and later; installation, shaders, widgets, and launch behavior require device tests.
+
+## Service configuration
+
+Online UI translations and announcements come from this repository, with bundled
+translations as a fallback. Optional Pro API/Web App endpoints default to reserved
+`.invalid` domains, with no configured bot, public key, or purchases. These services
+are unavailable until you supply your own `sg_config`; no upstream Pro service is
+used by default. These are development placeholders, not an Arielgram subscription
+or privacy policy. Passkey creation/login is disabled until an associated domain
+and compatible service are configured for this app.
+
+`build-system/appstore-configuration.json` is the default local build configuration.
+Set your own Telegram API ID/hash and Apple Team ID before distributing or signing.
+The name of this configuration file does not imply an App Store release.
 
 # Telegram iOS Source Code Compilation Guide
 
@@ -29,7 +63,7 @@ There are several things we require from **all developers** for the moment.
 ## Get the Code
 
 ```
-git clone --recursive -j8 https://github.com/Swiftgram/Telegram-iOS.git
+git clone --recursive -j8 https://github.com/arielherself/Telegram-iOS.git
 ```
 
 ## Setup Xcode
@@ -38,11 +72,8 @@ Install Xcode (directly from https://developer.apple.com/download/applications o
 
 ## Adjust Configuration
 
-1. Generate a random identifier:
-```
-openssl rand -hex 8
-```
-2. Create a new Xcode project. Use `Swiftgram` as the Product Name. Use `org.{identifier from step 1}` as the Organization Identifier.
+1. Use `xyz.arielherself.Arielgram` as the app Bundle ID.
+2. Create a new Xcode project. Use `Arielgram` as the Product Name and `xyz.arielherself` as the Organization Identifier.
 3. Open `Keychain Access` and navigate to `Certificates`. Locate `Apple Development: your@email.address (XXXXXXXXXX)` and double tap the certificate. Under `Details`, locate `Organizational Unit`. This is the Team ID.
 4. Edit `build-system/template_minimal_development_configuration.json`. Use data from the previous steps.
 

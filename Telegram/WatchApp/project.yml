@@ -4,14 +4,14 @@
 # iOS Bazel build (apple_prebuilt_watchos_application) compiles with
 # `xcodebuild -configuration Release`. Differs from project.yml deliberately:
 #   - watchOS app target only (no watchapp2-container, no test/snapshot targets)
-#   - bundle id ph.telegra.Telegraph.watchkitapp, a companion of ph.telegra.Telegraph
+#   - bundle id xyz.arielherself.Arielgram.watchkitapp, a companion of xyz.arielherself.Arielgram
 #   - signing disabled here; the Bazel rule codesigns the output
 #   - no SnapshotPreviews (preview/test tooling must not ship)
 # Keep `packages`, `deploymentTarget`, sources and the Info.plist path in sync
 # with project.yml. Do NOT add the container target or SnapshotPreviews here.
 name: tgwatch
 options:
-  bundleIdPrefix: app.swiftgram   # ph.telegra.Telegraph.watchkitapp, child of the main Telegram app id
+  bundleIdPrefix: xyz.arielherself   # xyz.arielherself.Arielgram.watchkitapp, child of the main Telegram app id
   developmentLanguage: en
   deploymentTarget:
     watchOS: "26.0"
@@ -51,12 +51,12 @@ targets:
     info:
       path: tgwatch Watch App/Info.plist
       properties:
-        CFBundleDisplayName: Swiftgram
-        CFBundleIconName: Swiftgram
+        CFBundleDisplayName: Arielgram
+        CFBundleIconName: AppIcon
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         WKApplication: true
-        WKCompanionAppBundleIdentifier: app.swiftgram.ios
+        WKCompanionAppBundleIdentifier: xyz.arielherself.Arielgram
         # Intentional: keeps the watch app independently installable on the watch
         # while still shipping inside the Telegram IPA. Do not change to false.
         WKRunsIndependentlyOfCompanionApp: true
@@ -68,7 +68,7 @@ targets:
         NSLocationWhenInUseUsageDescription: Share your current location in chats.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.swiftgram.ios.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: xyz.arielherself.Arielgram.watchkitapp
         DEVELOPMENT_TEAM: XQN86NH3QN
         TARGETED_DEVICE_FAMILY: "4"
         GENERATE_INFOPLIST_FILE: "NO"

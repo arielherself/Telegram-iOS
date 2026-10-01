@@ -50,6 +50,9 @@ public func makeIqtpQuery(_ method: String, _ args: [String] = []) -> String {
 }
 
 public func sgIqtpQuery(engine: TelegramEngine, query: String, incompleteResults: Bool = false, staleCachedResults: Bool = false) -> Signal<SGIQTPResponse?, NoError> {
+    guard !SG_CONFIG.botUsername.isEmpty else {
+        return .single(nil)
+    }
     let queryId = arc4random()
     func sgVerifySignedAnswer(query: String, answer: String, peerId: PeerId) -> String? {
         func sgBase64UrlDecode(_ value: String) -> Data? {

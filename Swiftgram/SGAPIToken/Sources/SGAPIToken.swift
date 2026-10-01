@@ -15,6 +15,9 @@ public enum SGAPITokenError {
 }
 
 public func getSGApiToken(context: AccountContext, botUsername: String = SG_CONFIG.botUsername) -> Signal<String, SGAPITokenError> {
+    guard !botUsername.isEmpty else {
+        return .fail(.generic("Arielgram services are not configured"))
+    }
     let userId = context.account.peerId.id._internalGetInt64Value()
     
     if let (token, expiration) = tokenCache[userId], Date() < expiration {
@@ -78,6 +81,9 @@ public func getSGApiToken(context: AccountContext, botUsername: String = SG_CONF
 }
 
 public func getSGSettingsURL(context: AccountContext, botUsername: String = SG_CONFIG.botUsername, url: String = SG_CONFIG.webappUrl, themeParams: [String: Any]? = nil) -> Signal<String, SGAPITokenError> {
+    guard !botUsername.isEmpty else {
+        return .fail(.generic("Arielgram services are not configured"))
+    }
     return Signal { subscriber in
         //      themeParams = generateWebAppThemeParams(
         //      context.sharedContext.currentPresentationData.with { $0 }.theme

@@ -385,7 +385,7 @@ public class UserDefaultsBackedDictionary<Key: Hashable, Value> {
 
 
 #if DEBUG
-private let queue = DispatchQueue(label: "app.swiftgram.ios.trace", qos: .utility)
+private let queue = DispatchQueue(label: "xyz.arielherself.Arielgram.trace", qos: .utility)
 
 public func SGtrace(_ domain: String, what: @autoclosure() -> String) {
     let string = what()

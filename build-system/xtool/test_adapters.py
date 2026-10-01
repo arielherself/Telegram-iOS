@@ -54,6 +54,37 @@ class ShaderTests(unittest.TestCase):
             self.assertIn('NV12Vertex;', source)
             self.assertNotIn('#include "', source)
 
+class ResourceCopyTests(unittest.TestCase):
+    def resource(self):
+        resource = object.__new__(LinuxResources)
+        resource.alternate_icons = {}
+        return resource
+
+    def test_changed_resource_replaces_previous_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            source = folder / 'source.txt'
+            target = folder / 'output'
+            source.write_text('old brand')
+            resource = self.resource()
+            resource.pack_files([source], target)
+            source.write_text('new brand')
+            resource.pack_files([source], target)
+            self.assertEqual((target / source.name).read_text(), 'new brand')
+
+    def test_conflicting_inputs_still_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            sources = []
+            for name in ('a', 'b'):
+                source = folder / name / 'same.txt'
+                source.parent.mkdir()
+                source.write_text(name)
+                sources.append(source)
+            with self.assertRaisesRegex(ValueError, 'Resource collision'):
+                self.resource().pack_files(sources, folder / 'output')
+
+
 class RuntimeTests(unittest.TestCase):
     def test_application_branch_and_incremental_output(self):
         with tempfile.TemporaryDirectory() as directory:

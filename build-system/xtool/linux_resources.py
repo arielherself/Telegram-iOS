@@ -54,6 +54,7 @@ class LinuxResources(Resources):
         metal = []
         template = []
         jobs = []
+        copied_sources = {}
         for source in files:
             text = str(source)
             if '.xcassets/' in text:
@@ -82,8 +83,10 @@ class LinuxResources(Resources):
             folder = destination / locale if locale else destination
             folder.mkdir(exist_ok=True)
             target = folder / source.name
-            if target.exists() and target.read_bytes() != source.read_bytes():
+            previous = copied_sources.get(target)
+            if previous is not None and previous.read_bytes() != source.read_bytes():
                 raise ValueError(f'Resource collision: {target}')
+            copied_sources[target] = source
             shutil.copy2(source, target)
         for appiconset in sorted(appiconsets):
             content = json.loads((appiconset / 'Contents.json').read_text())
@@ -149,7 +152,7 @@ class LinuxResources(Resources):
             image = Image.open(source).convert('RGB')
             pixels = int(points * scale)
             image.resize((pixels, pixels), Image.Resampling.LANCZOS).save(resources / f'AppIcon{points}@{scale}x.png')
-        info_path = self.output / 'Swiftgram-Info.plist'
+        info_path = self.output / 'Arielgram-Info.plist'
         info = plistlib.loads(info_path.read_bytes())
         icon = {'CFBundleIconFiles': ['AppIcon60'], 'UIPrerenderedIcon': False}
         info['CFBundleIcons'] = {'CFBundlePrimaryIcon': icon}

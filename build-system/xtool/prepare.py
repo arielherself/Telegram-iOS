@@ -345,7 +345,7 @@ class Exporter:
             (self.output / "xtool.yml").write_text(json.dumps(config, indent=2) + "\n")
         else:
             products = [f".library(name: {swift(self.names[self.root_label])}, targets: [{swift(self.names[self.root_label])}])"]
-        manifest = "// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"SwiftgramXTool\",\n    platforms: [.iOS(.v13)],\n    products: [\n        " + ",\n        ".join(products) + "\n    ],\n    targets: [\n        " + ",\n        ".join(targets) + "\n    ],\n    swiftLanguageModes: [.v5]\n)\n"
+        manifest = "// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"ArielgramXTool\",\n    platforms: [.iOS(.v13)],\n    products: [\n        " + ",\n        ".join(products) + "\n    ],\n    targets: [\n        " + ",\n        ".join(targets) + "\n    ],\n    swiftLanguageModes: [.v5]\n)\n"
         write_text_if_changed(self.output / "Package.swift", manifest)
         report = {
             "root": self.root_label, "configuration": "release_arm64", "ipaGenerated": False,
@@ -361,7 +361,7 @@ class Exporter:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bazel", default=os.environ.get("BAZEL", "bazel"))
-    parser.add_argument("--root", default="//Telegram:Swiftgram")
+    parser.add_argument("--root", default="//Telegram:Arielgram")
     parser.add_argument("--output", type=Path, default=ROOT / "build/xtool")
     parser.add_argument("--query-file", type=Path)
     parser.add_argument("--without-extensions", action="store_true")
