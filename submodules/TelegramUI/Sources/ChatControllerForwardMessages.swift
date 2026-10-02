@@ -138,6 +138,13 @@ extension ChatControllerImpl {
                         strongController.dismiss()
                         
                         var result: [EnqueueMessage] = []
+                        var attributes: [EngineMessage.Attribute] = []
+                        attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true, hideCaptions: forwardOptions?.hideCaptions == true))
+
+                        result.append(contentsOf: messages.map { message -> EnqueueMessage in
+                            return .forward(source: message.id, threadId: nil, grouping: .auto, attributes: attributes, correlationId: nil)
+                        })
+
                         if messageText.string.count > 0 {
                             let inputText = convertMarkdownToAttributes(messageText)
                             for text in breakChatInputText(trimChatInputText(inputText)) {
@@ -151,14 +158,7 @@ extension ChatControllerImpl {
                                 }
                             }
                         }
-                        
-                        var attributes: [EngineMessage.Attribute] = []
-                        attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true, hideCaptions: forwardOptions?.hideCaptions == true))
-                        
-                        result.append(contentsOf: messages.map { message -> EnqueueMessage in
-                            return .forward(source: message.id, threadId: nil, grouping: .auto, attributes: attributes, correlationId: nil)
-                        })
-                        
+
                         let commit: ([EnqueueMessage]) -> Void = { result in
                             guard let strongSelf = self else {
                                 return

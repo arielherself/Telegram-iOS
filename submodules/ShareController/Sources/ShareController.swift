@@ -1719,28 +1719,6 @@ public final class ShareController: ViewController {
                     }
                     
                     var messagesToEnqueue: [StandaloneSendEnqueueMessage] = []
-                    if !text.isEmpty {
-                        var banSendText = false
-                        if case let .channel(channel) = peer, channel.hasBannedPermission(.banSendText) != nil {
-                            banSendText = true
-                        } else if case let .legacyGroup(group) = peer, group.hasBannedPermission(.banSendText) {
-                            banSendText = true
-                        }
-                        
-                        if banSendText {
-                            strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: strongSelf.presentationData), title: peer.displayTitle(strings: strongSelf.presentationData.strings, displayOrder: strongSelf.presentationData.nameDisplayOrder), text: restrictedSendingContentsText(peer: peer, presentationData: strongSelf.presentationData), actions: [TextAlertAction(type: .defaultAction, title: strongSelf.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
-                            
-                            return .fail(.generic)
-                        }
-                        
-                        messagesToEnqueue.append(StandaloneSendEnqueueMessage(
-                            content: .text(text: StandaloneSendEnqueueMessage.Text(
-                                string: text,
-                                entities: []
-                            )),
-                            replyToMessageId: replyToMessageId
-                        ))
-                    }
                     for message in messages {
                         for media in message.media {
                             var banSendType = false
@@ -1805,6 +1783,28 @@ public final class ShareController: ViewController {
                             replyToMessageId: replyToMessageId
                         ))
                     }
+                    if !text.isEmpty {
+                        var banSendText = false
+                        if case let .channel(channel) = peer, channel.hasBannedPermission(.banSendText) != nil {
+                            banSendText = true
+                        } else if case let .legacyGroup(group) = peer, group.hasBannedPermission(.banSendText) {
+                            banSendText = true
+                        }
+
+                        if banSendText {
+                            strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: strongSelf.presentationData), title: peer.displayTitle(strings: strongSelf.presentationData.strings, displayOrder: strongSelf.presentationData.nameDisplayOrder), text: restrictedSendingContentsText(peer: peer, presentationData: strongSelf.presentationData), actions: [TextAlertAction(type: .defaultAction, title: strongSelf.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+
+                            return .fail(.generic)
+                        }
+
+                        messagesToEnqueue.append(StandaloneSendEnqueueMessage(
+                            content: .text(text: StandaloneSendEnqueueMessage.Text(
+                                string: text,
+                                entities: []
+                            )),
+                            replyToMessageId: replyToMessageId
+                        ))
+                    }
                     messagesToEnqueue = transformMessages(messagesToEnqueue, showNames: showNames, silently: silently, sendPaidMessageStars: requiresStars[peerId])
                     shareSignals.append(standaloneSendEnqueueMessages(
                         accountPeerId: strongSelf.currentContext.accountPeerId,
@@ -1822,7 +1822,8 @@ public final class ShareController: ViewController {
                         }),
                         peerId: peerId,
                         threadId: topicIds[peerId],
-                        messages: messagesToEnqueue
+                        messages: messagesToEnqueue,
+                        preserveMessageOrder: true
                     ))
                 }
             case let .fromExternal(_, f):
@@ -2171,7 +2172,7 @@ public final class ShareController: ViewController {
                         attributes.append(ForwardVideoTimestampAttribute(timestamp: startAtTimestamp))
                     }
                     if let forwardSourceMessageId {
-                        messages.append(.forward(source: forwardSourceMessageId, threadId: threadId, grouping: .auto, attributes: attributes, correlationId: nil))
+                        messages.insert(.forward(source: forwardSourceMessageId, threadId: threadId, grouping: .auto, attributes: attributes, correlationId: nil), at: 0)
                     } else {
                         messages.append(.message(text: sendTextAsCaption ? text : "", attributes: attributes, inlineStickers: [:], mediaReference: mediaReference, threadId: threadId, replyToMessageId: replyToMessageId.flatMap { EngineMessageReplySubject(messageId: $0, quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: []))
                     }
@@ -2226,24 +2227,6 @@ public final class ShareController: ViewController {
                     }
                     
                     var messagesToEnqueue: [EnqueueMessage] = []
-                    if !text.isEmpty {
-                        var banSendText = false
-                        if case let .channel(channel) = peer, channel.hasBannedPermission(.banSendText) != nil {
-                            banSendText = true
-                        } else if case let .legacyGroup(group) = peer, group.hasBannedPermission(.banSendText) {
-                            banSendText = true
-                        }
-                        
-                        if banSendText {
-                            strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: strongSelf.presentationData), title: peer.displayTitle(strings: strongSelf.presentationData.strings, displayOrder: strongSelf.presentationData.nameDisplayOrder), text: restrictedSendingContentsText(peer: peer, presentationData: strongSelf.presentationData), actions: [TextAlertAction(type: .defaultAction, title: strongSelf.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
-                            
-                            return .fail(.generic)
-                        }
-                        
-                        let correlationId = Int64.random(in: Int64.min ... Int64.max)
-                        correlationIds.append(correlationId)
-                        messagesToEnqueue.append(.message(text: text, attributes: [], inlineStickers: [:], mediaReference: nil, threadId: threadId, replyToMessageId: replyToMessageId.flatMap { EngineMessageReplySubject(messageId: $0, quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: []))
-                    }
                     for message in messages {
                         for media in message.media {
                             var banSendType = false
@@ -2303,6 +2286,24 @@ public final class ShareController: ViewController {
                         let correlationId = Int64.random(in: Int64.min ... Int64.max)
                         correlationIds.append(correlationId)
                         messagesToEnqueue.append(.forward(source: message.id, threadId: threadId, grouping: .auto, attributes: [], correlationId: correlationId))
+                    }
+                    if !text.isEmpty {
+                        var banSendText = false
+                        if case let .channel(channel) = peer, channel.hasBannedPermission(.banSendText) != nil {
+                            banSendText = true
+                        } else if case let .legacyGroup(group) = peer, group.hasBannedPermission(.banSendText) {
+                            banSendText = true
+                        }
+
+                        if banSendText {
+                            strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: strongSelf.presentationData), title: peer.displayTitle(strings: strongSelf.presentationData.strings, displayOrder: strongSelf.presentationData.nameDisplayOrder), text: restrictedSendingContentsText(peer: peer, presentationData: strongSelf.presentationData), actions: [TextAlertAction(type: .defaultAction, title: strongSelf.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+
+                            return .fail(.generic)
+                        }
+
+                        let correlationId = Int64.random(in: Int64.min ... Int64.max)
+                        correlationIds.append(correlationId)
+                        messagesToEnqueue.append(.message(text: text, attributes: [], inlineStickers: [:], mediaReference: nil, threadId: threadId, replyToMessageId: replyToMessageId.flatMap { EngineMessageReplySubject(messageId: $0, quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: []))
                     }
                     messagesToEnqueue = transformMessages(messagesToEnqueue, showNames: showNames, silently: silently, sendPaidMessageStars: requiresStars[peerId])
                     shareSignals.append(enqueueMessages(account: currentContext.context.account, peerId: peerId, messages: messagesToEnqueue))

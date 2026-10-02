@@ -5205,9 +5205,10 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                         replyThreadId = replyThreadMessage.threadId
                     }
                     
-                    for id in forwardMessageIds.sorted() {
-                        messages.append(.forward(source: id, threadId: replyThreadId, grouping: .auto, attributes: attributes, correlationId: nil))
+                    let forwardedMessages = forwardMessageIds.sorted().map { id -> EnqueueMessage in
+                        return .forward(source: id, threadId: replyThreadId, grouping: .auto, attributes: attributes, correlationId: nil)
                     }
+                    messages.insert(contentsOf: forwardedMessages, at: 0)
                 }
                 
                 let doSend: (Int64?) -> Void = { [weak self] overrideThreadId in

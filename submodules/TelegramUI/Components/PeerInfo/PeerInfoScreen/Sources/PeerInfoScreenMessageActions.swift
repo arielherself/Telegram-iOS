@@ -80,6 +80,13 @@ extension PeerInfoScreenNode {
                 strongController.dismiss()
 
                 var result: [EnqueueMessage] = []
+                var attributes: [EngineMessage.Attribute] = []
+                attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true, hideCaptions: forwardOptions?.hideCaptions == true))
+
+                result.append(contentsOf: messageIds.map { messageId -> EnqueueMessage in
+                    return .forward(source: messageId, threadId: nil, grouping: .auto, attributes: attributes, correlationId: nil)
+                })
+
                 if messageText.string.count > 0 {
                     let inputText = convertMarkdownToAttributes(messageText)
                     for text in breakChatInputText(trimChatInputText(inputText)) {
@@ -93,14 +100,7 @@ extension PeerInfoScreenNode {
                         }
                     }
                 }
-                
-                var attributes: [EngineMessage.Attribute] = []
-                attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true, hideCaptions: forwardOptions?.hideCaptions == true))
-                
-                result.append(contentsOf: messageIds.map { messageId -> EnqueueMessage in
-                    return .forward(source: messageId, threadId: nil, grouping: .auto, attributes: attributes, correlationId: nil)
-                })
-                
+
                 var displayPeers: [EnginePeer] = []
                 for peer in peers {
                     let _ = (enqueueMessages(account: strongSelf.context.account, peerId: peer.id, messages: result)

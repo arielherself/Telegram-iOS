@@ -124,7 +124,8 @@ public func standaloneSendEnqueueMessages(
     auxiliaryMethods: AccountAuxiliaryMethods,
     peerId: PeerId,
     threadId: Int64?,
-    messages: [StandaloneSendEnqueueMessage]
+    messages: [StandaloneSendEnqueueMessage],
+    preserveMessageOrder: Bool = false
 ) -> Signal<StandaloneSendMessageStatus, StandaloneSendMessagesError> {
     struct MessageResult {
         var result: PendingMessageUploadedContentResult
@@ -291,8 +292,16 @@ public func standaloneSendEnqueueMessages(
                 ))
             }
             
-            return combineLatest(sendSignals)
-            |> ignoreValues
+            let sendSignal: Signal<Never, StandaloneSendMessagesError>
+            if preserveMessageOrder {
+                // Uploads stay parallel; requests follow the selected message order.
+                sendSignal = sendSignals.reduce(.complete()) { result, next in
+                    result |> then(next)
+                }
+            } else {
+                sendSignal = combineLatest(sendSignals) |> ignoreValues
+            }
+            return sendSignal
             |> map { _ -> StandaloneSendMessageStatus in
             }
             |> then(.single(.done))
