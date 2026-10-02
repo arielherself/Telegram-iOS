@@ -16,7 +16,8 @@ app identity. It can be installed alongside other clients.
 - **Content visibility:** ignore client content restrictions, including `porn-ios`.
 - **No sponsored ads:** hide Telegram sponsored messages and search placements.
 - **Pro features:** enable all local Pro features without a subscription.
-- **Background monitoring:** optionally continue receiving updates in the background.
+- **Background monitoring:** optionally continue receiving updates and show local
+  new-message notifications in the background, without relying on APNs.
 
 ## Tracking and storage
 

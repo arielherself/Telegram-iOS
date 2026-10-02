@@ -7,6 +7,248 @@ import TelegramPresentationData
 import TelegramUIPreferences
 import TelegramCallsUI
 import AccountContext
+import Postbox
+import TelegramStringFormatting
+import LocalizedPeerData
+import SGSimpleSettings
+
+/// An in-memory receipt window, not a second message store. Events observed in
+/// the foreground or while disabled are consumed too, so replaying them cannot
+/// turn them into background notifications. Server time avoids device-clock skew.
+private struct ArielgramLocalNotificationGate {
+    private(set) var generation = 0
+    private var startedAt: TimeInterval?
+    private var seen = Set<String>()
+    private var order: [String] = []
+
+    mutating func update(enabled: Bool, background: Bool, now: TimeInterval) {
+        let eligible = enabled && background
+        if eligible != (self.startedAt != nil) {
+            self.generation += 1
+            self.startedAt = eligible ? now : nil
+        }
+    }
+
+    mutating func consume(identifiers: [String], timestamp: Int32, serverNow: Int32, now: TimeInterval) -> Bool {
+        let fresh = identifiers.filter { !self.seen.contains($0) }
+        for identifier in fresh where self.seen.insert(identifier).inserted {
+            self.order.append(identifier)
+        }
+        if self.order.count > 4096 {
+            let count = self.order.count - 4096
+            for identifier in self.order.prefix(count) { self.seen.remove(identifier) }
+            self.order.removeFirst(count)
+        }
+        guard !fresh.isEmpty, let startedAt = self.startedAt else { return false }
+        let age = Double(Int64(serverNow) - Int64(timestamp))
+        return age >= -30.0 && age <= max(0.0, now - startedAt) + 2.0
+    }
+
+    func allows(generation: Int) -> Bool {
+        return self.startedAt != nil && self.generation == generation
+    }
+}
+
+private func arielgramNotificationIdentifier(accountId: Int64, peerId: Int64, namespace: Int32, messageId: Int32) -> String {
+    // The m... prefix is understood by the existing read/delete cleanup.
+    return "m\(peerId):\(namespace):\(messageId)_arielgram_\(accountId)"
+}
+
+private func arielgramNotificationPreview(_ text: String, spoilers: [NSRange]) -> String {
+    let result = NSMutableString(string: text)
+    var merged: [NSRange] = []
+    for range in spoilers.sorted(by: { $0.location < $1.location }) where range.location >= 0 && range.length > 0 && range.location < result.length {
+        let range = NSRange(location: range.location, length: min(range.length, result.length - range.location))
+        if let previous = merged.last, NSMaxRange(previous) >= range.location {
+            merged[merged.count - 1] = NSUnionRange(previous, range)
+        } else {
+            merged.append(range)
+        }
+    }
+    for range in merged.reversed() {
+        result.replaceCharacters(in: range, with: "••••")
+    }
+    return String((result as String).prefix(512))
+}
+
+private final class ArielgramLocalMessageNotifications {
+    private let application: UIApplication
+    private let sharedContext: SharedAccountContext
+    private let center = UNUserNotificationCenter.current()
+    private var gate = ArielgramLocalNotificationGate()
+    private var observers: [NSObjectProtocol] = []
+    private let accountsDisposable = MetaDisposable()
+    private let settingsDisposable = MetaDisposable()
+    private var accountDisposables: [AccountRecordId: DisposableSet] = [:]
+    private var accounts: [AccountRecordId: Account] = [:]
+    private var primaryId: AccountRecordId?
+    private var soundLists: [AccountRecordId: NotificationSoundList] = [:]
+    private var settings = InAppNotificationSettings.defaultSettings
+    private var passcodeEnabled = true
+    private var authorizationRequested = false
+
+    init(application: UIApplication, sharedContext: SharedAccountContext, accounts: Signal<[(Account, Bool)], NoError>) {
+        self.application = application
+        self.sharedContext = sharedContext
+        self.settingsDisposable.set((combineLatest(
+            sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.inAppNotificationSettings]),
+            sharedContext.accountManager.accessChallengeData()
+        ) |> deliverOnMainQueue).start(next: { [weak self] data, challenge in
+            self?.settings = data.entries[ApplicationSpecificSharedDataKeys.inAppNotificationSettings]?.get(InAppNotificationSettings.self) ?? .defaultSettings
+            self?.passcodeEnabled = challenge.data.isLockable
+        }))
+        for name in [SGSimpleSettings.arielgramBackgroundMonitoringChanged, UIApplication.didEnterBackgroundNotification, UIApplication.willEnterForegroundNotification, UIApplication.didBecomeActiveNotification] {
+            self.observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.updateEligibility()
+            })
+        }
+        self.updateEligibility()
+        self.accountsDisposable.set((accounts |> deliverOnMainQueue).start(next: { [weak self] accounts in
+            guard let self else { return }
+            self.primaryId = accounts.first(where: { $0.1 })?.0.id
+            let ids = Set(accounts.map { $0.0.id })
+            for id in Array(self.accountDisposables.keys) where !ids.contains(id) {
+                self.accountDisposables.removeValue(forKey: id)?.dispose()
+                self.accounts.removeValue(forKey: id)
+                self.soundLists.removeValue(forKey: id)
+            }
+            for (account, _) in accounts where self.accountDisposables[account.id] == nil {
+                self.accounts[account.id] = account
+                let disposable = DisposableSet()
+                self.accountDisposables[account.id] = disposable
+                disposable.add((TelegramEngine(account: account).peers.notificationSoundList() |> deliverOnMainQueue).start(next: { [weak self] list in
+                    self?.soundLists[account.id] = list
+                }))
+                disposable.add((account.stateManager.notificationMessages |> deliverOnMainQueue).start(next: { [weak self] list in
+                    self?.receive(account: account, list: list)
+                }))
+            }
+        }))
+    }
+
+    deinit {
+        self.observers.forEach { NotificationCenter.default.removeObserver($0) }
+        self.accountsDisposable.dispose()
+        self.settingsDisposable.dispose()
+        self.accountDisposables.values.forEach { $0.dispose() }
+    }
+
+    private func updateEligibility() {
+        let enabled = SGSimpleSettings.shared.arielgramBackgroundMonitoring
+        self.gate.update(enabled: enabled, background: self.application.applicationState == .background, now: ProcessInfo.processInfo.systemUptime)
+        // Authorization is local too. Do not register a remote token or ask the
+        // system to show an authorization prompt from the background.
+        if enabled, self.application.applicationState == .active, !self.authorizationRequested {
+            self.authorizationRequested = true
+            self.center.requestAuthorization(options: [.alert, .sound, .badge]) { _, error in
+                if let error { Logger.shared.log("LocalNotifications", "Authorization failed: \(error)") }
+            }
+        }
+    }
+
+    private func receive(account: Account, list: [([Message], PeerGroupId, Bool, MessageHistoryThreadData?)]) {
+        self.updateEligibility()
+        let generation = self.gate.generation
+        let now = ProcessInfo.processInfo.systemUptime
+        let serverNow = account.network.getApproximateRemoteTimestamp()
+        var messageIds: [MessageId] = []
+        for (messages, _, notify, _) in list {
+            let incoming = messages.filter { message in
+                return message.flags.contains(.Incoming) && message.author?.id != account.peerId
+                    && (message.id.namespace == Namespaces.Message.Cloud || message.id.namespace == Namespaces.Message.SecretIncoming)
+                    && !(message.forwardInfo?.flags.contains(.isImported) ?? false)
+            }
+            guard let message = incoming.min(by: { $0.index < $1.index }) else { continue }
+            let identifiers = incoming.map { arielgramNotificationIdentifier(accountId: account.id.int64, peerId: $0.id.peerId.toInt64(), namespace: $0.id.namespace, messageId: $0.id.id) }
+            let fresh = self.gate.consume(identifiers: identifiers, timestamp: incoming.map(\.timestamp).max() ?? message.timestamp, serverNow: serverNow, now: now)
+            if fresh && notify && (self.primaryId == account.id || self.settings.displayNotificationsFromAllAccounts) {
+                messageIds.append(message.id)
+            }
+        }
+        guard !messageIds.isEmpty, self.accountDisposables[account.id] != nil else { return }
+        let _ = (account.postbox.transaction { transaction -> [([Message], PeerMessageSound, Bool, MessageHistoryThreadData?, ContentSettings)] in
+            let contentSettings = getContentSettings(transaction: transaction)
+            return messageIds.compactMap { id in
+                guard transaction.getPeerChatListIndex(id.peerId) != nil else { return nil }
+                let result = messagesForNotification(transaction: transaction, id: id, alwaysReturnMessage: false)
+                guard result.notify, !result.messages.isEmpty else { return nil }
+                return (result.messages, result.sound, result.displayContents, result.threadData, contentSettings)
+            }
+        } |> deliverOnMainQueue).startStandalone(next: { [weak self] payloads in
+            guard let self, self.gate.allows(generation: generation), self.accounts[account.id] === account,
+                  self.application.applicationState == .background, SGSimpleSettings.shared.arielgramBackgroundMonitoring else { return }
+            for (messages, sound, previews, threadData, contentSettings) in payloads {
+                self.deliver(account: account, messages: messages, sound: sound, previews: previews, threadData: threadData, contentSettings: contentSettings)
+            }
+        })
+    }
+
+    private func deliver(account: Account, messages: [Message], sound: PeerMessageSound, previews: Bool, threadData: MessageHistoryThreadData?, contentSettings: ContentSettings) {
+        guard self.primaryId == account.id || self.settings.displayNotificationsFromAllAccounts,
+              let message = messages.min(by: { $0.index < $1.index }), let peer = message.peers[message.id.peerId] else { return }
+        let presentation = self.sharedContext.currentPresentationData.with { $0 }
+        let strings = presentation.strings
+        let content = UNMutableNotificationContent()
+        let showNames = self.settings.displayNameOnLockscreen && !self.passcodeEnabled
+        let showText = previews && self.settings.displayPreviews && showNames && message.id.peerId.namespace != Namespaces.Peer.SecretChat
+        content.title = showNames ? EnginePeer(peer).displayTitle(strings: strings, displayOrder: presentation.nameDisplayOrder) : "Arielgram"
+        if showNames, let threadData { content.subtitle = threadData.info.title }
+        content.body = strings.Watch_MessageView_Title
+        if showText {
+            let description = descriptionStringForMessage(contentSettings: contentSettings, message: EngineMessage(message), strings: strings, nameDisplayOrder: presentation.nameDisplayOrder, dateTimeFormat: presentation.dateTimeFormat, accountPeerId: account.peerId)
+            var spoilers: [NSRange] = []
+            if description.2, let entities = message.textEntitiesAttribute?.entities {
+                spoilers = entities.compactMap { entity in
+                    if case .Spoiler = entity.type { return NSRange(location: entity.range.lowerBound, length: entity.range.count) }
+                    return nil
+                }
+            }
+            // Raw entity offsets apply before folding line breaks.
+            let text = description.2 ? arielgramNotificationPreview(message.text, spoilers: spoilers) : description.0.string
+            content.body = foldLineBreaks(text)
+            if let author = message.author, author.id != peer.id, !(peer is TelegramUser) {
+                content.body = EnginePeer(author).displayTitle(strings: strings, displayOrder: presentation.nameDisplayOrder) + ": " + content.body
+            }
+            if messages.count > 1 { content.body += " (\(messages.count))" }
+        }
+        content.sound = self.notificationSound(account: account, sound: sound)
+        content.categoryIdentifier = "unknown"
+        content.threadIdentifier = "arielgram_\(account.id.int64)_\(message.id.peerId.toInt64())_\(message.threadId ?? 0)"
+        content.userInfo = ["accountId": account.id.int64, "peerId": message.id.peerId.toInt64(), "messageId.namespace": message.id.namespace, "messageId.id": message.id.id, "arielgramLocalMessage": true]
+        if let threadId = message.threadId, threadData != nil { content.userInfo["threadId"] = threadId }
+        let identifier = arielgramNotificationIdentifier(accountId: account.id.int64, peerId: message.id.peerId.toInt64(), namespace: message.id.namespace, messageId: message.id.id)
+        self.center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { error in
+            if let error { Logger.shared.log("LocalNotifications", "Delivery failed: \(error)") }
+        }
+    }
+
+    private func notificationSound(account: Account, sound: PeerMessageSound) -> UNNotificationSound? {
+        switch sound {
+        case .none: return nil
+        case .default: return .default
+        case let .bundledModern(id): return UNNotificationSound(named: UNNotificationSoundName("\(id + 100).m4a"))
+        case let .bundledClassic(id): return UNNotificationSound(named: UNNotificationSoundName("\(id + 2).m4a"))
+        case let .cloud(fileId):
+            if let (id, category) = getCloudLegacySound(id: fileId) {
+                let name = category == .modern ? id + 100 : id + 2
+                return UNNotificationSound(named: UNNotificationSoundName("\(name).m4a"))
+            }
+            if let file = self.soundLists[account.id]?.sounds.first(where: { $0.file.fileId.id == fileId })?.file,
+               let source = account.postbox.mediaBox.completedResourcePath(file.resource, pathExtension: nil) {
+                do {
+                    let directory = try FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("Sounds", isDirectory: true)
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    let pathExtension = (file.fileName as NSString?)?.pathExtension ?? ""
+                    let name = "arielgram_\(fileId)." + (pathExtension.isEmpty ? "m4a" : pathExtension)
+                    let target = directory.appendingPathComponent(name)
+                    if !FileManager.default.fileExists(atPath: target.path) { try FileManager.default.copyItem(atPath: source, toPath: target.path) }
+                    return UNNotificationSound(named: UNNotificationSoundName(name))
+                } catch { Logger.shared.log("LocalNotifications", "Sound preparation failed: \(error)") }
+            }
+            return .default
+        }
+    }
+}
 
 private final class PollStateContext {
     let subscribers = Bag<(Bool) -> Void>()
@@ -46,14 +288,16 @@ public final class SharedNotificationManager {
     private var notifications: [NotificationInfo] = []
     
     private var pollStateContexts: [AccountRecordId: PollStateContext] = [:]
+    private var localMessageNotifications: ArielgramLocalMessageNotifications?
     
-    init(episodeId: UInt32, application: UIApplication, clearNotificationsManager: ClearNotificationsManager?, inForeground: Signal<Bool, NoError>, accounts: Signal<[(Account, Bool)], NoError>, pollLiveLocationOnce: @escaping (AccountRecordId) -> Void) {
+    init(episodeId: UInt32, application: UIApplication, sharedContext: SharedAccountContext, clearNotificationsManager: ClearNotificationsManager?, inForeground: Signal<Bool, NoError>, accounts: Signal<[(Account, Bool)], NoError>, pollLiveLocationOnce: @escaping (AccountRecordId) -> Void) {
         assert(Queue.mainQueue().isCurrent())
         
         self.episodeId = episodeId
         self.application = application
         self.clearNotificationsManager = clearNotificationsManager
         self.pollLiveLocationOnce = pollLiveLocationOnce
+        self.localMessageNotifications = ArielgramLocalMessageNotifications(application: application, sharedContext: sharedContext, accounts: accounts)
         
         self.inForegroundDisposable = (inForeground
         |> deliverOnMainQueue).startStrict(next: { [weak self] value in
