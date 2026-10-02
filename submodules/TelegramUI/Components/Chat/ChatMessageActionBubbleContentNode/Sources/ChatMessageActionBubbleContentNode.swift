@@ -1040,7 +1040,7 @@ public class ChatMessageActionBubbleContentNode: ChatMessageBubbleContentNode {
                 }
                 return ChatMessageBubbleContentTapAction(content: .url(ChatMessageBubbleContentTapAction.Url(url: url, concealed: concealed)))
             } else if let peerMention = attributes[NSAttributedString.Key(rawValue: TelegramTextAttributes.PeerMention)] as? TelegramPeerMention {
-                if peerMention.peerId == item.context.account.peerId, let action = item.message.media.first as? TelegramMediaAction, case .customText = action.action {
+                if peerMention.peerId == item.context.account.peerId, !item.message.attributes.contains(where: { $0 is ArielgramPeerProfileChangeAttribute }), let action = item.message.media.first as? TelegramMediaAction, case .customText = action.action {
                     return ChatMessageBubbleContentTapAction(content: .peerMention(peerId: peerMention.peerId, mention: peerMention.mention, openProfile: false))
                 } else {
                     return ChatMessageBubbleContentTapAction(content: .peerMention(peerId: peerMention.peerId, mention: peerMention.mention, openProfile: true))

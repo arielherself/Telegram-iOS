@@ -126,7 +126,26 @@ public func universalServiceMessageString(presentationData: (PresentationTheme, 
     }
     
     if let change = message.attributes.compactMap({ $0 as? ArielgramPeerProfileChangeAttribute }).first {
-        return NSAttributedString(string: change.text(languageCode: strings.baseLanguageCode), font: titleFont, textColor: primaryTextColor)
+        let text = change.text(languageCode: strings.baseLanguageCode)
+        let result = NSMutableAttributedString(string: text, font: titleFont, textColor: primaryTextColor)
+        let ranges: [NSRange]
+        switch change.kind {
+        case .name:
+            // Both historical names refer to the same peer. Use UTF-16 offsets
+            // and the template boundaries, not a name search that can match the
+            // wrong occurrence when names repeat or contain the prompt text.
+            ranges = [
+                NSRange(location: 1, length: (change.previousName as NSString).length),
+                NSRange(location: result.length - 1 - (change.updatedName as NSString).length, length: (change.updatedName as NSString).length)
+            ]
+        case .avatar:
+            ranges = [NSRange(location: 0, length: (change.updatedName as NSString).length)]
+        }
+        for range in ranges where range.length > 0 {
+            result.addAttribute(.font, value: titleBoldFont, range: range)
+            result.addAttribute(NSAttributedString.Key(rawValue: TelegramTextAttributes.PeerMention), value: TelegramPeerMention(peerId: change.peerId, mention: ""), range: range)
+        }
+        return result
     }
 
     let bodyAttributes = MarkdownAttributeSet(font: titleFont, textColor: primaryTextColor, additionalAttributes: [:])
