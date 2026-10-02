@@ -64,6 +64,7 @@ private final class PendingMessageContext {
     let uploadDisposable = MetaDisposable()
     let sendDisposable = MetaDisposable()
     var threadId: Int64?
+    var isForward: Bool?
     var activityType: PeerInputActivity? = nil
     var contentType: PendingMessageUploadedContentType? = nil
     let activityDisposable = MetaDisposable()
@@ -312,6 +313,40 @@ public final class PendingMessageManager {
         return !self.liveTypingDraftKeys.contains(key)
     }
 
+    private func isMessageSendGateClosed(messageId: MessageId, threadId: Int64?) -> Bool {
+        let key = PeerAndThreadId(peerId: messageId.peerId, threadId: threadId)
+        if self.shouldGateSend(messageId: messageId, threadId: threadId) && !self.isSendGateOpen(for: key) {
+            return true
+        }
+        // Request dependency tags cannot wait for a forward RPC that has not
+        // been registered yet. Keep later content parked until earlier forwards
+        // leave the existing pending-message set after confirmation or removal.
+        guard messageId.namespace == Namespaces.Message.Local || messageId.namespace == Namespaces.Message.ScheduledLocal,
+              messageId.peerId.namespace != Namespaces.Peer.SecretChat else {
+            return false
+        }
+        return self.messageContexts.contains { id, context in
+            return id.peerId == messageId.peerId && id.namespace == messageId.namespace
+                && id.id < messageId.id && (context.isForward == nil || context.threadId == threadId)
+                && self.pendingMessageIds.contains(id) && context.isForward != false
+        }
+    }
+
+    private func drainWaitingSendGates(peerIds: Set<PeerId>) {
+        var keys = Set<PeerAndThreadId>()
+        for (id, context) in self.messageContexts where peerIds.contains(id.peerId) {
+            if case .waitingForSendGate = context.state {
+                keys.insert(PeerAndThreadId(peerId: id.peerId, threadId: context.threadId))
+            }
+        }
+        for key in self.forwardSendGateGroups.keys where peerIds.contains(key.peerId) {
+            keys.insert(key)
+        }
+        for key in keys {
+            self.drainSendGate(key: key)
+        }
+    }
+
     private func drainSendGate(key: PeerAndThreadId) {
         assert(self.queue.isCurrent())
 
@@ -363,7 +398,9 @@ public final class PendingMessageManager {
         }
 
         // (3) Forward drain: pop parked groups for this key in FIFO order; fire each.
-        if let parkedGroups = self.forwardSendGateGroups.removeValue(forKey: key) {
+        if let parkedGroups = self.forwardSendGateGroups[key], let firstMessage = parkedGroups.first?.first?.1,
+           !self.shouldGateSend(messageId: firstMessage.id, threadId: firstMessage.threadId) || self.isSendGateOpen(for: key) {
+            self.forwardSendGateGroups.removeValue(forKey: key)
             for messages in parkedGroups {
                 for (context, _, _) in messages {
                     context.state = .sending(groupId: nil)
@@ -475,6 +512,7 @@ public final class PendingMessageManager {
             }
             
             self.pendingMessageIds = messageIds
+            self.drainWaitingSendGates(peerIds: updateUploadingPeerIds)
             
             for peerId in updateUploadingPeerIds {
                 self.updateWaitingUploads(peerId: peerId)
@@ -629,6 +667,13 @@ public final class PendingMessageManager {
                 Logger.shared.log("PendingMessageManager", "begin sending, continued: \(ids)")
                 Logger.shared.log("PendingMessageManager", "beginSendingMessages messages.count: \(messages.count)")
                 
+                for message in messages {
+                    if let context = strongSelf.messageContexts[message.id] {
+                        context.threadId = message.threadId
+                        context.isForward = message.attributes.contains { $0 is ForwardSourceInfoAttribute }
+                    }
+                }
+
                 for message in messages.filter({ !$0.flags.contains(.Sending) }).sorted(by: { $0.id < $1.id }) {
                     guard let messageContext = strongSelf.messageContexts[message.id] else {
                         continue
@@ -891,6 +936,7 @@ public final class PendingMessageManager {
                         |> deliverOn(strongSelf.queue)).start())
                     }
                 }
+                strongSelf.drainWaitingSendGates(peerIds: Set(messages.map { $0.id.peerId }))
             }
         }))
     }
@@ -899,12 +945,7 @@ public final class PendingMessageManager {
         if let groupId = groupId {
             messageContext.state = .waitingToBeSent(groupId: groupId, content: content)
         } else {
-            let key = PeerAndThreadId(peerId: messageId.peerId, threadId: messageContext.threadId)
-            if self.shouldGateSend(messageId: messageId, threadId: messageContext.threadId) && !self.isSendGateOpen(for: key) {
-                messageContext.state = .waitingForSendGate(groupId: nil, content: content)
-            } else {
-                self.commitSendingSingleMessage(messageContext: messageContext, messageId: messageId, content: content)
-            }
+            self.commitSendingSingleMessage(messageContext: messageContext, messageId: messageId, content: content)
         }
         self.updatePendingMediaUploads()
     }
@@ -963,10 +1004,8 @@ public final class PendingMessageManager {
     }
     
     private func commitSendingMessageGroup(groupId: Int64, messages: [(messageContext: PendingMessageContext, messageId: MessageId, content: PendingMessageUploadedContentAndReuploadInfo)]) {
-        let firstMessageId = messages[0].messageId
-        let firstThreadId = messages[0].messageContext.threadId
-        let key = PeerAndThreadId(peerId: firstMessageId.peerId, threadId: firstThreadId)
-        if self.shouldGateSend(messageId: firstMessageId, threadId: firstThreadId) && !self.isSendGateOpen(for: key) {
+        guard let firstMessage = messages.min(by: { $0.messageId < $1.messageId }) else { return }
+        if self.isMessageSendGateClosed(messageId: firstMessage.messageId, threadId: firstMessage.messageContext.threadId) {
             for entry in messages {
                 entry.messageContext.state = .waitingForSendGate(groupId: groupId, content: entry.content)
             }
@@ -985,6 +1024,10 @@ public final class PendingMessageManager {
     }
     
     private func commitSendingSingleMessage(messageContext: PendingMessageContext, messageId: MessageId, content: PendingMessageUploadedContentAndReuploadInfo) {
+        if self.isMessageSendGateClosed(messageId: messageId, threadId: messageContext.threadId) {
+            messageContext.state = .waitingForSendGate(groupId: nil, content: content)
+            return
+        }
         messageContext.state = .sending(groupId: nil)
         let sendMessage: Signal<PendingMessageResult, NoError> = self.sendMessageContent(network: self.network, postbox: self.postbox, stateManager: self.stateManager, accountPeerId: self.accountPeerId, messageId: messageId, content: content)
         |> map { next -> PendingMessageResult in
